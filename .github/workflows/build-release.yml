@@ -91,13 +91,13 @@ jobs:
         run: flutter build appbundle --release
 
       - name: Rename AAB artifact
-        run: mv build/app/outputs/bundle/release/app-release.aab build/app/outputs/bundle/release/unofficial-apex-companion-v${{ needs.extract-version.outputs.version }}-release.aab
+        run: mv build/app/outputs/bundle/release/app-release.aab build/app/outputs/bundle/release/unofficial-apex-companion-release-v${{ needs.extract-version.outputs.version }}.aab
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
           name: unofficial-apex-companion-android
-          path: build/app/outputs/bundle/release/unofficial-apex-companion-v${{ needs.extract-version.outputs.version }}-release.aab
+          path: build/app/outputs/bundle/release/unofficial-apex-companion-release-v${{ needs.extract-version.outputs.version }}.aab
 
   build-windows:
     needs: [test, extract-version]
@@ -133,13 +133,13 @@ jobs:
           & 'C:\Program Files (x86)\NSIS\makensis.exe' "${{ github.workspace }}\windows\installer\unofficial_apex_companion.nsi"
 
       - name: Rename Windows installer
-        run: mv unofficial-apex-companion-installer.exe "unofficial-apex-companion-v${{ needs.extract-version.outputs.version }}-installer.exe"
+        run: mv unofficial-apex-companion-installer.exe "unofficial-apex-companion-installer-v${{ needs.extract-version.outputs.version }}.exe"
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: unofficial-apex-companion-windows
-          path: unofficial-apex-companion-v${{ needs.extract-version.outputs.version }}-installer.exe
+          path: unofficial-apex-companion-installer-v${{ needs.extract-version.outputs.version }}.exe
 
   build-linux:
     needs: [test, extract-version]
@@ -270,8 +270,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            windows-build/unofficial-apex-companion-v${{ needs.extract-version.outputs.version }}-installer.exe
+            windows-build/unofficial-apex-companion-installer-v${{ needs.extract-version.outputs.version }}.exe
             linux-build/unofficial-apex-companion-v${{ needs.extract-version.outputs.version }}.AppImage
-            android-build/unofficial-apex-companion-v${{ needs.extract-version.outputs.version }}-release.aab
+            android-build/unofficial-apex-companion-release-v${{ needs.extract-version.outputs.version }}.aab
           draft: true
           generate_release_notes: true
