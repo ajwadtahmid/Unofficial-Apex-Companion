@@ -12,7 +12,8 @@ class MapNotificationService {
     final anyActive =
         (s.notifyRankedMapRotation && s.rankedNotifyMinutesBefore > 0) ||
         (s.notifyPubsMapRotation && s.pubsNotifyMinutesBefore > 0) ||
-        (s.notifyMixtapeMapRotation && s.mixtapeNotifyMinutesBefore > 0);
+        (s.notifyMixtapeMapRotation && s.mixtapeNotifyMinutesBefore > 0) ||
+        (s.notifyWildcardMapRotation && s.wildcardNotifyMinutesBefore > 0);
     if (anyActive) {
       unawaited(NotificationService.scheduleAll(
         data,
@@ -22,6 +23,8 @@ class MapNotificationService {
         pubsMinutesBefore: s.pubsNotifyMinutesBefore,
         notifyMixtape: s.notifyMixtapeMapRotation,
         mixtapeMinutesBefore: s.mixtapeNotifyMinutesBefore,
+        notifyWildcard: s.notifyWildcardMapRotation,
+        wildcardMinutesBefore: s.wildcardNotifyMinutesBefore,
         favoriteRankedMapNames: s.favoriteRankedMapNames,
         favoritePubsMapNames: s.favoritePubsMapNames,
       ));

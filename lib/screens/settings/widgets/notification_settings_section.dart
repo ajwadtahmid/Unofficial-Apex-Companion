@@ -45,6 +45,7 @@ class NotificationSettingsSection extends ConsumerWidget {
     final count = [
       settings.notifyRankedMapRotation && settings.rankedNotifyMinutesBefore > 0,
       settings.notifyPubsMapRotation && settings.pubsNotifyMinutesBefore > 0,
+      settings.notifyWildcardMapRotation && settings.wildcardNotifyMinutesBefore > 0,
       settings.notifyMixtapeMapRotation && settings.mixtapeNotifyMinutesBefore > 0,
     ].where((b) => b).length;
     return count == 0 ? 'Off' : '$count active';

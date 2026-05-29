@@ -71,9 +71,11 @@ class PlayerSettings {
   final bool notifyPubsMapRotation;
   final bool notifyRankedMapRotation;
   final bool notifyMixtapeMapRotation;
+  final bool notifyWildcardMapRotation;
   final int rankedNotifyMinutesBefore; // 0 = off, else minutes before rotation
   final int pubsNotifyMinutesBefore;
   final int mixtapeNotifyMinutesBefore;
+  final int wildcardNotifyMinutesBefore;
   final int defaultTab; // 0=Home 1=Stats 2=Search 3=Settings
   final List<String> favoriteRankedMapNames;
   final List<String> favoritePubsMapNames;
@@ -86,9 +88,11 @@ class PlayerSettings {
     this.notifyPubsMapRotation = false,
     this.notifyRankedMapRotation = false,
     this.notifyMixtapeMapRotation = false,
+    this.notifyWildcardMapRotation = false,
     this.rankedNotifyMinutesBefore = 0,
     this.pubsNotifyMinutesBefore = 0,
     this.mixtapeNotifyMinutesBefore = 0,
+    this.wildcardNotifyMinutesBefore = 0,
     this.defaultTab = 0,
     this.favoriteRankedMapNames = const [],
     this.favoritePubsMapNames = const [],
@@ -114,9 +118,11 @@ class PlayerSettings {
           other.notifyPubsMapRotation == notifyPubsMapRotation &&
           other.notifyRankedMapRotation == notifyRankedMapRotation &&
           other.notifyMixtapeMapRotation == notifyMixtapeMapRotation &&
+          other.notifyWildcardMapRotation == notifyWildcardMapRotation &&
           other.rankedNotifyMinutesBefore == rankedNotifyMinutesBefore &&
           other.pubsNotifyMinutesBefore == pubsNotifyMinutesBefore &&
           other.mixtapeNotifyMinutesBefore == mixtapeNotifyMinutesBefore &&
+          other.wildcardNotifyMinutesBefore == wildcardNotifyMinutesBefore &&
           other.defaultTab == defaultTab &&
           listEquals(other.favoriteRankedMapNames, favoriteRankedMapNames) &&
           listEquals(other.favoritePubsMapNames, favoritePubsMapNames);
@@ -131,9 +137,11 @@ class PlayerSettings {
     notifyPubsMapRotation,
     notifyRankedMapRotation,
     notifyMixtapeMapRotation,
+    notifyWildcardMapRotation,
     rankedNotifyMinutesBefore,
     pubsNotifyMinutesBefore,
     mixtapeNotifyMinutesBefore,
+    wildcardNotifyMinutesBefore,
     defaultTab,
     Object.hashAll(favoriteRankedMapNames),
     Object.hashAll(favoritePubsMapNames),
@@ -147,9 +155,11 @@ class PlayerSettings {
     bool? notifyPubsMapRotation,
     bool? notifyRankedMapRotation,
     bool? notifyMixtapeMapRotation,
+    bool? notifyWildcardMapRotation,
     int? rankedNotifyMinutesBefore,
     int? pubsNotifyMinutesBefore,
     int? mixtapeNotifyMinutesBefore,
+    int? wildcardNotifyMinutesBefore,
     int? defaultTab,
     List<String>? favoriteRankedMapNames,
     List<String>? favoritePubsMapNames,
@@ -165,12 +175,16 @@ class PlayerSettings {
           notifyRankedMapRotation ?? this.notifyRankedMapRotation,
       notifyMixtapeMapRotation:
           notifyMixtapeMapRotation ?? this.notifyMixtapeMapRotation,
+      notifyWildcardMapRotation:
+          notifyWildcardMapRotation ?? this.notifyWildcardMapRotation,
       rankedNotifyMinutesBefore:
           rankedNotifyMinutesBefore ?? this.rankedNotifyMinutesBefore,
       pubsNotifyMinutesBefore:
           pubsNotifyMinutesBefore ?? this.pubsNotifyMinutesBefore,
       mixtapeNotifyMinutesBefore:
           mixtapeNotifyMinutesBefore ?? this.mixtapeNotifyMinutesBefore,
+      wildcardNotifyMinutesBefore:
+          wildcardNotifyMinutesBefore ?? this.wildcardNotifyMinutesBefore,
       defaultTab: defaultTab ?? this.defaultTab,
       favoriteRankedMapNames:
           favoriteRankedMapNames ?? this.favoriteRankedMapNames,
@@ -256,12 +270,16 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
           _prefs.getBool(PrefsKeys.notifyRankedMapRotation) ?? false,
       notifyMixtapeMapRotation:
           _prefs.getBool(PrefsKeys.notifyMixtapeMapRotation) ?? false,
+      notifyWildcardMapRotation:
+          _prefs.getBool(PrefsKeys.notifyWildcardMapRotation) ?? false,
       rankedNotifyMinutesBefore:
           _prefs.getInt(PrefsKeys.rankedNotifyMinutes) ?? legacyMinutes,
       pubsNotifyMinutesBefore:
           _prefs.getInt(PrefsKeys.pubsNotifyMinutes) ?? legacyMinutes,
       mixtapeNotifyMinutesBefore:
           _prefs.getInt(PrefsKeys.mixtapeNotifyMinutes) ?? legacyMinutes,
+      wildcardNotifyMinutesBefore:
+          _prefs.getInt(PrefsKeys.wildcardNotifyMinutes) ?? 0,
       defaultTab: _prefs.getInt(PrefsKeys.defaultTab) ?? 0,
       favoriteRankedMapNames:
           parseStringList(_prefs.getString(PrefsKeys.favoriteRankedMapNames)),
@@ -383,6 +401,14 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
   Future<void> setNotifyMixtapeMapRotation(bool v) =>
       _setAndPersist(PrefsKeys.notifyMixtapeMapRotation, v,
           (s) => s.copyWith(notifyMixtapeMapRotation: v));
+
+  Future<void> setNotifyWildcardMapRotation(bool v) =>
+      _setAndPersist(PrefsKeys.notifyWildcardMapRotation, v,
+          (s) => s.copyWith(notifyWildcardMapRotation: v));
+
+  Future<void> setWildcardNotifyMinutesBefore(int v) =>
+      _setAndPersist(PrefsKeys.wildcardNotifyMinutes, v,
+          (s) => s.copyWith(wildcardNotifyMinutesBefore: v));
 
   Future<void> setDefaultTab(int v) =>
       _setAndPersist(PrefsKeys.defaultTab, v,

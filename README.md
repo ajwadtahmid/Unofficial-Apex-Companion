@@ -10,7 +10,6 @@
 
 <p align="center">
   <img alt="Release" src="https://img.shields.io/github/v/release/ajwadtahmid/Unofficial-Apex-Companion?color=orange&label=release" />
-  <img alt="Build Status" src="https://img.shields.io/github/actions/workflow/status/ajwadtahmid/Unofficial-Apex-Companion/build-release.yml?branch=main&logo=github" />
   <img alt="Downloads" src="https://img.shields.io/github/downloads/ajwadtahmid/Unofficial-Apex-Companion/total?color=blue" />
   <img alt="Flutter" src="https://img.shields.io/badge/Flutter-3.x-blue?logo=flutter&logoColor=white" />
   <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-green" />
@@ -24,7 +23,7 @@
 
 ## Overview
 
-Whether you're climbing ranked, managing multiple legends, or optimizing your queue, **Unofficial Apex Companion** delivers the data that matters—instantly, with zero friction.
+Track your ranked grind and visualize your RP gains with interactive graphs. Get instant map alerts, compare your stats with friends and rivals, and put all the data that matters at your fingertips with **Unofficial Apex Companion**.
 
 ## Table of Contents
 
@@ -75,6 +74,7 @@ Whether you're climbing ranked, managing multiple legends, or optimizing your qu
 - **Player Stats** — Rank, RP, current legend, equipped trackers, and weekly RP gain tracking. Supports search by name or numeric UID.
 - **Weekly Ranked History** — Interactive graph showing RP gains per week with season/split selector dropdown and week-by-week navigation (W1, W2, W3...). Tracks unlimited snapshots for power users playing 10+ matches daily.
 - **Legend Stats** — Kill counts and tracker values per legend, merged across sessions and sorted by most-played.
+- **Gun Stats** — Detailed weapon performance including kills, damage, and damage per kill.
 - **Map Rotations** — Live countdown for Ranked, Pubs, and Mixtape. Shows current map, time remaining, and what loads next. Switches automatically when the rotation changes.
 - **Predator Cutoff** — Current minimum RP to reach Apex Predator on PC, PlayStation, Xbox, and Switch.
 - **Server Status** — Health of Origin Login, EA Accounts, Nova Fusion, and Apex Crossplay. Drill down to see per-region latency in milliseconds, color-coded green/orange/red.
@@ -87,6 +87,7 @@ Whether you're climbing ranked, managing multiple legends, or optimizing your qu
 - **Background Notifications** — Alerts fire even when the app is closed (via background fetch on iOS/Android).
 - **View Cached Stats Offline** — All player stats are cached locally on your device. Search for a player online, and their stats remain accessible even without internet—perfect for checking during downtime.
 - **No account required** — Data is fetched using your public in-game name or UID.
+- **Data Backup & Restore** — Export your player profiles, favorites, and tracked data as a backup file. Restore from backup anytime to recover your data or switch devices seamlessly.
 - **Dark theme** — Designed for low-light gaming sessions.
 
 ---
@@ -238,8 +239,8 @@ This project would not be possible without these amazing resources and the devel
 ## Known Limitations
 
 - **RP snapshots** — Only tracks if app is open and sync is completed. RP gains when app is closed are not captured.
-- **Legend stats** — Tracker names and values are as reported by the Apex Legends API; custom or seasonal tracker names may not be fully supported.
-- **Predator cutoff** — Updates when you fetch it. Doesn't refresh automatically; manual refresh required to see latest cutoff.
+- **Legend stats** — Tracker names and values are as reported by the Apex Legends Status API; custom or seasonal tracker names may not be fully supported.
+- **Predator cutoff** — Updates each hour. Doesn't refresh automatically; manual refresh required to see latest cutoff.
 - **Offline player search** — If a player hasn't been searched before, their data won't be cached and you'll need internet to look them up.
 
 ---

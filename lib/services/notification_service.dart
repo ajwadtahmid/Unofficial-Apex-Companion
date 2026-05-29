@@ -71,11 +71,12 @@ class NotificationService {
   /// Whether the current platform supports local notifications and background fetch.
   static bool get _supportsScheduled => Platform.isAndroid || Platform.isIOS;
 
-  // IDs 11–13 are reserved for per-mode map-rotation notifications.
+  // IDs 11–14 are reserved for per-mode map-rotation notifications.
   // IDs 1–10 are reserved for future notification categories (RP milestones, etc.).
   static const _notifIdRanked = 11;
   static const _notifIdPubs = 12;
   static const _notifIdLtm = 13;
+  static const _notifIdWildcard = 14;
 
   /// Schedule up to 3 notifications (one per mode) and cancel any old ones.
   /// Each mode has its own [minutesBefore] timing.
@@ -88,6 +89,8 @@ class NotificationService {
     int pubsMinutesBefore = 0,
     bool notifyMixtape = false,
     int mixtapeMinutesBefore = 0,
+    bool notifyWildcard = false,
+    int wildcardMinutesBefore = 0,
     List<String> favoriteRankedMapNames = const [],
     List<String> favoritePubsMapNames = const [],
   }) async {
@@ -98,6 +101,7 @@ class NotificationService {
       _plugin.cancel(_notifIdRanked),
       _plugin.cancel(_notifIdPubs),
       _plugin.cancel(_notifIdLtm),
+      _plugin.cancel(_notifIdWildcard),
     ]);
 
     if (notifyRanked && rankedMinutesBefore > 0) {
@@ -130,6 +134,18 @@ class NotificationService {
         rotation.ltmNext!,
         rotation.ltmCurrent!.remainingSecs,
         mixtapeMinutesBefore,
+      );
+    }
+    if (notifyWildcard &&
+        wildcardMinutesBefore > 0 &&
+        rotation.wildcardCurrent != null &&
+        rotation.wildcardNext != null) {
+      await _scheduleMode(
+        _notifIdWildcard,
+        'Wildcards',
+        rotation.wildcardNext!,
+        rotation.wildcardCurrent!.remainingSecs,
+        wildcardMinutesBefore,
       );
     }
   }

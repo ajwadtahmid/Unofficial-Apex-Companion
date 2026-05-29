@@ -71,6 +71,8 @@ Future<void> _backgroundFetchAndSchedule() async {
       rankedMinutesBefore: settings.rankedMinutesBefore,
       notifyMixtape: settings.notifyMixtape,
       mixtapeMinutesBefore: settings.mixtapeMinutesBefore,
+      notifyWildcard: settings.notifyWildcard,
+      wildcardMinutesBefore: settings.wildcardMinutesBefore,
       favoriteRankedMapNames: settings.favoriteRankedMapNames,
       favoritePubsMapNames: settings.favoritePubsMapNames,
     );

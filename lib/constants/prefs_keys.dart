@@ -16,10 +16,12 @@ class PrefsKeys {
   static const notifyPubsMapRotation = 'notify_pubs_map_rotation';
   static const notifyRankedMapRotation = 'notify_ranked_map_rotation';
   static const notifyMixtapeMapRotation = 'notify_mixtape_map_rotation';
+  static const notifyWildcardMapRotation = 'notify_wildcard_map_rotation';
 
   static const rankedNotifyMinutes = 'ranked_notify_minutes';
   static const pubsNotifyMinutes = 'pubs_notify_minutes';
   static const mixtapeNotifyMinutes = 'mixtape_notify_minutes';
+  static const wildcardNotifyMinutes = 'wildcard_notify_minutes';
 
   static const favoriteRankedMapNames = 'favorite_ranked_map_names';
   static const favoritePubsMapNames = 'favorite_pubs_map_names';

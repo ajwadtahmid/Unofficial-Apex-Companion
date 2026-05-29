@@ -24,7 +24,7 @@ void showMapAlertsSheet(BuildContext context) {
   );
 }
 
-enum _NotifMode { pubs, ranked, mixtape }
+enum _NotifMode { pubs, ranked, wildcard, mixtape }
 
 class _MapAlertsSheetContent extends ConsumerStatefulWidget {
   const _MapAlertsSheetContent();
@@ -104,6 +104,7 @@ class _MapAlertsSheetContentState
     final current = switch (mode) {
       _NotifMode.ranked => settings.rankedNotifyMinutesBefore,
       _NotifMode.pubs => settings.pubsNotifyMinutesBefore,
+      _NotifMode.wildcard => settings.wildcardNotifyMinutesBefore,
       _NotifMode.mixtape => settings.mixtapeNotifyMinutesBefore,
     };
     final currentIndex = _notifyOptions.indexOf(current);
@@ -130,6 +131,8 @@ class _MapAlertsSheetContentState
                   await notifier.setRankedNotifyMinutesBefore(minutes);
                 case _NotifMode.pubs:
                   await notifier.setPubsNotifyMinutesBefore(minutes);
+                case _NotifMode.wildcard:
+                  await notifier.setWildcardNotifyMinutesBefore(minutes);
                 case _NotifMode.mixtape:
                   await notifier.setMixtapeNotifyMinutesBefore(minutes);
               }
@@ -164,6 +167,7 @@ class _MapAlertsSheetContentState
     final previouslyEnabled = switch (mode) {
       _NotifMode.ranked => settings.notifyRankedMapRotation,
       _NotifMode.pubs => settings.notifyPubsMapRotation,
+      _NotifMode.wildcard => settings.notifyWildcardMapRotation,
       _NotifMode.mixtape => settings.notifyMixtapeMapRotation,
     };
 
@@ -173,6 +177,8 @@ class _MapAlertsSheetContentState
         await notifier.setNotifyPubsMapRotation(enabled);
       case _NotifMode.ranked:
         await notifier.setNotifyRankedMapRotation(enabled);
+      case _NotifMode.wildcard:
+        await notifier.setNotifyWildcardMapRotation(enabled);
       case _NotifMode.mixtape:
         await notifier.setNotifyMixtapeMapRotation(enabled);
     }
@@ -185,6 +191,7 @@ class _MapAlertsSheetContentState
       final currentTiming = switch (mode) {
         _NotifMode.ranked => s.rankedNotifyMinutesBefore,
         _NotifMode.pubs => s.pubsNotifyMinutesBefore,
+        _NotifMode.wildcard => s.wildcardNotifyMinutesBefore,
         _NotifMode.mixtape => s.mixtapeNotifyMinutesBefore,
       };
       if (currentTiming == 0) {
@@ -193,6 +200,8 @@ class _MapAlertsSheetContentState
             await notifier.setRankedNotifyMinutesBefore(_kDefaultNotifyMinutes);
           case _NotifMode.pubs:
             await notifier.setPubsNotifyMinutesBefore(_kDefaultNotifyMinutes);
+          case _NotifMode.wildcard:
+            await notifier.setWildcardNotifyMinutesBefore(_kDefaultNotifyMinutes);
           case _NotifMode.mixtape:
             await notifier.setMixtapeNotifyMinutesBefore(_kDefaultNotifyMinutes);
         }
@@ -234,6 +243,7 @@ class _MapAlertsSheetContentState
     final anyEnabled =
         (disabledMode != _NotifMode.pubs && s.notifyPubsMapRotation) ||
         (disabledMode != _NotifMode.ranked && s.notifyRankedMapRotation) ||
+        (disabledMode != _NotifMode.wildcard && s.notifyWildcardMapRotation) ||
         (disabledMode != _NotifMode.mixtape && s.notifyMixtapeMapRotation);
     if (!anyEnabled) await NotificationService.cancelAll();
   }
@@ -297,6 +307,8 @@ class _MapAlertsSheetContentState
         rankedMinutesBefore: s.rankedNotifyMinutesBefore,
         notifyPubs: s.notifyPubsMapRotation,
         pubsMinutesBefore: s.pubsNotifyMinutesBefore,
+        notifyWildcard: s.notifyWildcardMapRotation,
+        wildcardMinutesBefore: s.wildcardNotifyMinutesBefore,
         notifyMixtape: s.notifyMixtapeMapRotation,
         mixtapeMinutesBefore: s.mixtapeNotifyMinutesBefore,
         favoriteRankedMapNames: s.favoriteRankedMapNames,
@@ -413,6 +425,26 @@ class _MapAlertsSheetContentState
                             seasonalMaps.pubs, _pubsNotify, _showAllPubs),
                         onTap: () => setState(() => _showAllPubs = true),
                       ),
+                  ],
+
+                  const Divider(color: AppTheme.surface2, height: 24),
+
+                  // ── Wildcards ───────────────────────────────────────
+                  MapModeTile(
+                    icon: Icons.casino,
+                    label: 'Wildcards',
+                    enabled: settings.notifyWildcardMapRotation,
+                    onTap: () => _toggleMode(
+                      context,
+                      _NotifMode.wildcard,
+                      !settings.notifyWildcardMapRotation,
+                    ),
+                  ),
+                  if (settings.notifyWildcardMapRotation) ...[
+                    MapTimingTile(
+                      label: _timingLabel(settings.wildcardNotifyMinutesBefore),
+                      onTap: () => _pickTiming(context, _NotifMode.wildcard),
+                    ),
                   ],
 
                   const Divider(color: AppTheme.surface2, height: 24),

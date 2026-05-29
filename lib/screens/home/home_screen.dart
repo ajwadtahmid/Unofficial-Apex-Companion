@@ -26,6 +26,7 @@ import 'widgets/summary_tile_skeleton.dart';
 
 const _kModeRanked = 'Ranked';
 const _kModePubs = 'Pubs';
+const _kModeWildcard = 'Wildcards';
 const _kModeMixtape = 'Mixtape';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -55,9 +56,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           p?.notifyPubsMapRotation != n.notifyPubsMapRotation ||
           p?.notifyRankedMapRotation != n.notifyRankedMapRotation ||
           p?.notifyMixtapeMapRotation != n.notifyMixtapeMapRotation ||
+          p?.notifyWildcardMapRotation != n.notifyWildcardMapRotation ||
           p?.rankedNotifyMinutesBefore != n.rankedNotifyMinutesBefore ||
           p?.pubsNotifyMinutesBefore != n.pubsNotifyMinutesBefore ||
-          p?.mixtapeNotifyMinutesBefore != n.mixtapeNotifyMinutesBefore;
+          p?.mixtapeNotifyMinutesBefore != n.mixtapeNotifyMinutesBefore ||
+          p?.wildcardNotifyMinutesBefore != n.wildcardNotifyMinutesBefore;
       if (!changed) return;
       // Sync background fetch cadence with the smallest active timing.
       BackgroundService.updateInterval(
@@ -68,6 +71,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           pubsMinutes: n.pubsNotifyMinutesBefore,
           notifyMixtape: n.notifyMixtapeMapRotation,
           mixtapeMinutes: n.mixtapeNotifyMinutesBefore,
+          notifyWildcard: n.notifyWildcardMapRotation,
+          wildcardMinutes: n.wildcardNotifyMinutesBefore,
         ),
       );
       if (ref.read(mapRotationProvider) case AsyncData<ApiResult<MapRotation>>(:final value)) {
@@ -221,6 +226,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       current: rotation.battleRoyaleCurrent,
       next: rotation.battleRoyaleNext,
     ),
+    if (rotation.wildcardCurrent != null && rotation.wildcardNext != null)
+      _ModeData(
+        label: _kModeWildcard,
+        current: rotation.wildcardCurrent!,
+        next: rotation.wildcardNext!,
+      ),
     if (rotation.ltmCurrent != null && rotation.ltmNext != null)
       _ModeData(
         label: _kModeMixtape,

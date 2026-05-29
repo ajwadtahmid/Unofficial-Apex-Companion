@@ -5,6 +5,8 @@ class MapRotation {
   final MapMode rankedNext;
   final MapMode? ltmCurrent;
   final MapMode? ltmNext;
+  final MapMode? wildcardCurrent;
+  final MapMode? wildcardNext;
 
   MapRotation({
     required this.battleRoyaleCurrent,
@@ -13,12 +15,15 @@ class MapRotation {
     required this.rankedNext,
     this.ltmCurrent,
     this.ltmNext,
+    this.wildcardCurrent,
+    this.wildcardNext,
   });
 
   factory MapRotation.fromJson(Map<String, dynamic> json) {
     final battleRoyaleJson = json['battle_royale'] as Map<String, dynamic>? ?? {};
     final ranked = json['ranked'] as Map<String, dynamic>? ?? {};
     final ltm = json['ltm'] as Map<String, dynamic>?;
+    final wildcard = json['wildcard'] as Map<String, dynamic>?;
 
     return MapRotation(
       battleRoyaleCurrent: MapMode.fromJson(
@@ -38,6 +43,12 @@ class MapRotation {
           : null,
       ltmNext: ltm != null
           ? MapMode.fromJson(ltm['next'] as Map<String, dynamic>? ?? {})
+          : null,
+      wildcardCurrent: wildcard != null
+          ? MapMode.fromJson(wildcard['current'] as Map<String, dynamic>? ?? {})
+          : null,
+      wildcardNext: wildcard != null
+          ? MapMode.fromJson(wildcard['next'] as Map<String, dynamic>? ?? {})
           : null,
     );
   }
