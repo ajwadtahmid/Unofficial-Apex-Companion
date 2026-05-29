@@ -3,7 +3,7 @@
 
 ; Basic settings
 Name "Unofficial Apex Companion"
-OutFile "$%GITHUB_WORKSPACE%\unofficial_apex_companion_installer.exe"
+OutFile "$%GITHUB_WORKSPACE%\unofficial-apex-companion-installer.exe"
 InstallDir "$PROGRAMFILES\Unofficial Apex Companion"
 RequestExecutionLevel admin
 
