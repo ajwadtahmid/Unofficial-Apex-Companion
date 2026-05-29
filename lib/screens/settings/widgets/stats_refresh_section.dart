@@ -28,7 +28,7 @@ class StatsRefreshSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionLabel(label: 'PREFERENCES', icon: Icons.tune),
+        const SectionLabel(label: 'Preferences', icon: Icons.tune),
         SettingsCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

@@ -13,7 +13,7 @@ class SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8, left: 4),
+      padding: const EdgeInsets.only(bottom: 12, left: 4),
       child: IconTextRow(
         icon: icon,
         text: label,
@@ -22,9 +22,8 @@ class SectionLabel extends StatelessWidget {
         gap: 6,
         textStyle: const TextStyle(
           color: AppTheme.muted,
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: FontWeight.w600,
-          letterSpacing: 1.5,
         ),
       ),
     );
@@ -74,25 +73,6 @@ class ActionRow extends StatelessWidget {
   }
 }
 
-class InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const InfoRow({super.key, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 14)),
-        Text(
-          value,
-          style: const TextStyle(color: AppTheme.muted, fontSize: 14),
-        ),
-      ],
-    );
-  }
-}
 
 class LinkRow extends StatelessWidget {
   final String label;

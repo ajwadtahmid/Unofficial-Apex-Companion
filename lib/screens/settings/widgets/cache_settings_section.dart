@@ -16,7 +16,7 @@ class CacheSettingsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionLabel(label: 'DATA', icon: Icons.storage),
+        const SectionLabel(label: 'Data', icon: Icons.storage),
         SettingsCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
