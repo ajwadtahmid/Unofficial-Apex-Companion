@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../../../lib/models/player_stats.dart';
-import '../../../lib/utils/formatting/tracker_utils.dart';
+import 'package:unofficial_apex_companion/models/player_stats.dart';
+import 'package:unofficial_apex_companion/utils/formatting/tracker_utils.dart';
 
 LegendTracker _t(String name, int value) =>
     LegendTracker(key: name.toLowerCase(), displayName: name, value: value);

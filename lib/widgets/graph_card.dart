@@ -192,7 +192,7 @@ class _GraphCardState extends State<GraphCard> {
             ],
           ),
 
-          SizedBox(height: AppTheme.xs),
+          const SizedBox(height: AppTheme.xs),
 
           // ── Week date range + delta badge ─────────────────────────────────
           Row(
@@ -289,9 +289,9 @@ class _GraphCardState extends State<GraphCard> {
   }
 
   Widget _buildNoSeason() {
-    return SurfaceCard(
-      padding: const EdgeInsets.all(AppTheme.md),
-      child: const Text(
+    return const SurfaceCard(
+      padding: EdgeInsets.all(AppTheme.md),
+      child: Text(
         'Ranked Point History',
         style: TextStyle(
           fontWeight: FontWeight.bold,

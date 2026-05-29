@@ -3,6 +3,7 @@
 /// Maintains a persisted list of favorite players (UIDs + display names).
 /// When syncing player data, automatically enriches name-based entries with
 /// UIDs to ensure stable lookups across name changes.
+library;
 
 import 'dart:convert';
 import 'package:flutter/foundation.dart';

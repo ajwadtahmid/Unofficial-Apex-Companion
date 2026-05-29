@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../lib/utils/api_cache.dart';
+import 'package:unofficial_apex_companion/utils/api_cache.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -20,7 +20,7 @@ void main() {
       await cache.save('mykey', {'foo': 'bar'});
       final entry = cache.load('mykey');
       expect(entry, isNotNull);
-      expect(entry!.data['foo'], 'bar');
+      expect((entry!.data as Map<String, dynamic>)['foo'], 'bar');
     });
 
     test('load returns null for corrupted JSON', () async {

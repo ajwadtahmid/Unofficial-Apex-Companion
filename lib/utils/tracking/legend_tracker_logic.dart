@@ -2,6 +2,7 @@
 /// Trackers are achievement records (kills, wins, damage) with numeric values;
 /// API responses may contain duplicate entries, so these utilities find and
 /// rank them by value to prevent ties.
+library;
 
 import '../../models/player_stats.dart';
 

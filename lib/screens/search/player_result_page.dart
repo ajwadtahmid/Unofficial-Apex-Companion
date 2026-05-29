@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../constants/api_constants.dart';
 import '../../models/player_stats.dart';
 import '../../providers/api_provider.dart';
+import '../../utils/api_cache.dart' show ApiResult;
 import '../../providers/player_provider.dart';
 import '../../providers/search_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -51,7 +52,7 @@ class _PlayerResultPageState extends ConsumerState<PlayerResultPage> {
           searchByUid: widget.searchByUid,
         )),
         (_, next) {
-          if (next case AsyncData(:final value)) {
+          if (next case AsyncData<ApiResult<PlayerStats>>(:final value)) {
             if (value.data.uid.isEmpty) return;
             ref
                 .read(searchStateProvider.notifier)

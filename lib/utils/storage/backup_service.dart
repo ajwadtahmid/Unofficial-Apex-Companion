@@ -112,7 +112,7 @@ class ImportError extends ImportResult {
 Future<ImportResult> importBackup(SharedPreferences prefs) async {
   final pickedFile = await file_selector.openFile(
     acceptedTypeGroups: [
-      file_selector.XTypeGroup(
+      const file_selector.XTypeGroup(
         label: 'JSON files',
         extensions: ['json'],
       ),

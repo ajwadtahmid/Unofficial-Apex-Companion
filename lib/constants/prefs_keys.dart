@@ -36,13 +36,13 @@ class PrefsKeys {
   // Modern code uses 'stat_snapshots_<uid>' instead.
   static const statSnapshots = 'stat_snapshots';
 
-  /// Builds UID-scoped key for snapshots: 'stat_snapshots_<uid>' or 'stat_snapshots' (legacy).
-  /// The global key intentionally lacks the '_' suffix for backwards compatibility
+  /// Builds UID-scoped key for snapshots: `stat_snapshots_<uid>` or `stat_snapshots` (legacy).
+  /// The global key intentionally lacks the `_` suffix for backwards compatibility
   /// with data accumulated before UID support was added.
   static String snapshotKeyFor(String? uid) =>
       uid?.isNotEmpty == true ? 'stat_snapshots_$uid' : statSnapshots;
 
-  /// Builds UID-scoped key for legend stats: 'legend_stats_<uid>' or 'legend_stats' (legacy).
+  /// Builds UID-scoped key for legend stats: `legend_stats_<uid>` or `legend_stats` (legacy).
   static String legendStatsKeyFor(String? uid) =>
       uid?.isNotEmpty == true ? 'legend_stats_$uid' : 'legend_stats';
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../models/map_rotation.dart';
 import '../../providers/map_provider.dart';
+import '../../utils/api_cache.dart' show ApiResult;
 import '../../providers/news_provider.dart';
 import '../../providers/predator_provider.dart';
 import '../../providers/server_provider.dart';
@@ -43,31 +44,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     _mapSub = ref.listenManual(mapRotationProvider, (_, next) {
-      if (next case AsyncData(:final value)) {
+      if (next case AsyncData<ApiResult<MapRotation>>(:final value)) {
         MapNotificationService.schedule(ref, value.data);
       }
     });
     _settingsSub = ref.listenManual(playerSettingsProvider, (prev, next) {
+      final p = prev as PlayerSettings?;
+      final n = next as PlayerSettings;
       final changed =
-          prev?.notifyPubsMapRotation != next.notifyPubsMapRotation ||
-          prev?.notifyRankedMapRotation != next.notifyRankedMapRotation ||
-          prev?.notifyMixtapeMapRotation != next.notifyMixtapeMapRotation ||
-          prev?.rankedNotifyMinutesBefore != next.rankedNotifyMinutesBefore ||
-          prev?.pubsNotifyMinutesBefore != next.pubsNotifyMinutesBefore ||
-          prev?.mixtapeNotifyMinutesBefore != next.mixtapeNotifyMinutesBefore;
+          p?.notifyPubsMapRotation != n.notifyPubsMapRotation ||
+          p?.notifyRankedMapRotation != n.notifyRankedMapRotation ||
+          p?.notifyMixtapeMapRotation != n.notifyMixtapeMapRotation ||
+          p?.rankedNotifyMinutesBefore != n.rankedNotifyMinutesBefore ||
+          p?.pubsNotifyMinutesBefore != n.pubsNotifyMinutesBefore ||
+          p?.mixtapeNotifyMinutesBefore != n.mixtapeNotifyMinutesBefore;
       if (!changed) return;
       // Sync background fetch cadence with the smallest active timing.
       BackgroundService.updateInterval(
         calculateMinActiveNotificationInterval(
-          notifyRanked: next.notifyRankedMapRotation,
-          rankedMinutes: next.rankedNotifyMinutesBefore,
-          notifyPubs: next.notifyPubsMapRotation,
-          pubsMinutes: next.pubsNotifyMinutesBefore,
-          notifyMixtape: next.notifyMixtapeMapRotation,
-          mixtapeMinutes: next.mixtapeNotifyMinutesBefore,
+          notifyRanked: n.notifyRankedMapRotation,
+          rankedMinutes: n.rankedNotifyMinutesBefore,
+          notifyPubs: n.notifyPubsMapRotation,
+          pubsMinutes: n.pubsNotifyMinutesBefore,
+          notifyMixtape: n.notifyMixtapeMapRotation,
+          mixtapeMinutes: n.mixtapeNotifyMinutesBefore,
         ),
       );
-      if (ref.read(mapRotationProvider) case AsyncData(:final value)) {
+      if (ref.read(mapRotationProvider) case AsyncData<ApiResult<MapRotation>>(:final value)) {
         MapNotificationService.schedule(ref, value.data);
       }
     });

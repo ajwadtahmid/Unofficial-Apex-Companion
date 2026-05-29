@@ -99,7 +99,7 @@ class PlayerService {
     );
     final lookup = PlayerUidResult.fromJson(result.data);
     if (lookup.uid.isEmpty) {
-      throw AppException('Player not found. Check the name and platform.');
+      throw const AppException('Player not found. Check the name and platform.');
     }
     return lookup;
   }

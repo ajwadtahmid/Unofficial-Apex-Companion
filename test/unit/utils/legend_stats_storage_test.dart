@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../lib/models/player_stats.dart';
-import '../../../lib/utils/storage/legend_stats_storage.dart';
+import 'package:unofficial_apex_companion/models/player_stats.dart';
+import 'package:unofficial_apex_companion/utils/storage/legend_stats_storage.dart';
 
 import '../../helpers.dart';
 
@@ -40,14 +40,14 @@ void main() {
 
     test('updates existing tracker values', () async {
       final prefs = await SharedPreferences.getInstance();
-      final first = [
+      const first = [
         LegendStat(name: 'Wraith', trackers: [
           LegendTracker(key: 'kills', displayName: 'Kills', value: 100),
         ]),
       ];
       await mergeLegendStats(first, prefs);
 
-      final second = [
+      const second = [
         LegendStat(name: 'Wraith', trackers: [
           LegendTracker(key: 'kills', displayName: 'Kills', value: 200),
         ]),
@@ -59,13 +59,13 @@ void main() {
 
     test('appends new trackers to an existing legend', () async {
       final prefs = await SharedPreferences.getInstance();
-      await mergeLegendStats([
+      await mergeLegendStats(const [
         LegendStat(name: 'Wraith', trackers: [
           LegendTracker(key: 'kills', displayName: 'Kills', value: 100),
         ]),
       ], prefs);
 
-      final result = await mergeLegendStats([
+      final result = await mergeLegendStats(const [
         LegendStat(name: 'Wraith', trackers: [
           LegendTracker(key: 'kills', displayName: 'Kills', value: 100),
           LegendTracker(key: 'wins', displayName: 'Wins', value: 50),
@@ -77,7 +77,7 @@ void main() {
 
     test('does not bump lastUpdated when trackers are unchanged', () async {
       final prefs = await SharedPreferences.getInstance();
-      final legend = [
+      const legend = [
         LegendStat(name: 'Wraith', trackers: [
           LegendTracker(key: 'kills', displayName: 'Kills', value: 100),
         ]),
@@ -95,7 +95,7 @@ void main() {
 
     test('bumps lastUpdated when tracker value changes', () async {
       final prefs = await SharedPreferences.getInstance();
-      await mergeLegendStats([
+      await mergeLegendStats(const [
         LegendStat(name: 'Wraith', trackers: [
           LegendTracker(key: 'kills', displayName: 'Kills', value: 100),
         ]),
@@ -104,7 +104,7 @@ void main() {
       final firstUpdated = first.first.lastUpdated;
 
       await Future.delayed(const Duration(milliseconds: 5));
-      await mergeLegendStats([
+      await mergeLegendStats(const [
         LegendStat(name: 'Wraith', trackers: [
           LegendTracker(key: 'kills', displayName: 'Kills', value: 200),
         ]),

@@ -110,11 +110,11 @@ class _ProfileManagerSheetState extends ConsumerState<ProfileManagerSheet> {
                 borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                 border: Border.all(color: AppTheme.muted.withAlpha(60), width: 1),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.add, color: AppTheme.accent, size: 18),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   Text(
                     'Add Profile',
                     style: TextStyle(

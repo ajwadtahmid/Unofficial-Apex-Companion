@@ -29,7 +29,7 @@ class SeasonalMapsNotifier extends AsyncNotifier<SeasonalMaps> {
     final prefs = ref.watch(sharedPreferencesProvider);
     final apiService = ref.watch(apiServiceProvider);
 
-    SeasonalMaps? cached = _loadFromCache(prefs);
+    final SeasonalMaps? cached = _loadFromCache(prefs);
 
     try {
       final result = await apiService.get('/maps', noCache: true);

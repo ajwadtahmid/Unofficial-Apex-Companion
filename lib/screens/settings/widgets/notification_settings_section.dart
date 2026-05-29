@@ -15,7 +15,7 @@ class NotificationSettingsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionLabel(label: 'NOTIFICATIONS', icon: Icons.notifications_outlined),
+        const SectionLabel(label: 'NOTIFICATIONS', icon: Icons.notifications_outlined),
         SettingsCard(
           child: InkWell(
             borderRadius: BorderRadius.circular(AppTheme.radiusSm),

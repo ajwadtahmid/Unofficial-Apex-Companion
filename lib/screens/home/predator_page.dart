@@ -27,12 +27,12 @@ class PredatorPage extends StatelessWidget {
             (e) => PlatformCard(platformKey: e.$1, name: e.$2, info: e.$3!),
           ),
           const SizedBox(height: AppTheme.md),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppTheme.sm),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppTheme.sm),
             child: Text(
               predatorPageInfo,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.muted, fontSize: 12, height: 1.5),
+              style: TextStyle(color: AppTheme.muted, fontSize: 12, height: 1.5),
             ),
           ),
         ],

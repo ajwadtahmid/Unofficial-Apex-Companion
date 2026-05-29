@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../lib/services/api_service.dart';
-import '../../../lib/services/player_service.dart';
-import '../../../lib/utils/error_messages.dart';
+import 'package:unofficial_apex_companion/services/api_service.dart';
+import 'package:unofficial_apex_companion/services/player_service.dart';
+import 'package:unofficial_apex_companion/utils/error_messages.dart';
 
 class MockApiService extends Mock implements ApiService {}
 
@@ -26,7 +26,7 @@ void main() {
           noCache: any(named: 'noCache'),
         ),
       ).thenAnswer(
-        (_) async => ApiResult({'uid': '', 'name': 'Unknown', 'avatar': ''}),
+        (_) async => const ApiResult({'uid': '', 'name': 'Unknown', 'avatar': ''}),
       );
 
       expect(
@@ -50,7 +50,7 @@ void main() {
         ),
       ).thenAnswer(
         (_) async =>
-            ApiResult({'uid': '12345', 'name': 'SomePlayer', 'avatar': ''}),
+            const ApiResult({'uid': '12345', 'name': 'SomePlayer', 'avatar': ''}),
       );
 
       final result = await service.nameToUid('SomePlayer', 'PC');
@@ -66,7 +66,7 @@ void main() {
           noCache: any(named: 'noCache'),
         ),
       ).thenAnswer(
-        (_) async => ApiResult({'uid': '99', 'name': 'x', 'avatar': ''}),
+        (_) async => const ApiResult({'uid': '99', 'name': 'x', 'avatar': ''}),
       );
 
       await service.nameToUid('TestName', 'X1');

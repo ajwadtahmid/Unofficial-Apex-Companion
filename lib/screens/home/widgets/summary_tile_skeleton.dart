@@ -8,24 +8,24 @@ class SummaryTileSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ShimmerWrapper(
+    return const ShimmerWrapper(
       child: SurfaceCard(
-        padding: const EdgeInsets.symmetric(
+        padding: EdgeInsets.symmetric(
           horizontal: AppTheme.md,
           vertical: AppTheme.summaryTileVerticalPadding,
         ),
         child: Row(
           children: [
-            const ShimmerBox(
+            ShimmerBox(
               width: 28,
               height: 28,
               borderRadius: BorderRadius.all(Radius.circular(14)),
             ),
-            const SizedBox(width: AppTheme.sm),
+            SizedBox(width: AppTheme.sm),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
+                children: [
                   ShimmerBox(width: 110, height: 18),
                   SizedBox(height: 2),
                   ShimmerBox(width: 170, height: 16),

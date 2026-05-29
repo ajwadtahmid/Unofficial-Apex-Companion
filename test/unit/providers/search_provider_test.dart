@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../lib/providers/search_provider.dart';
-import '../../../lib/providers/settings_provider.dart';
+import 'package:unofficial_apex_companion/providers/search_provider.dart';
+import 'package:unofficial_apex_companion/providers/settings_provider.dart';
 
 void main() {
   late SharedPreferences prefs;

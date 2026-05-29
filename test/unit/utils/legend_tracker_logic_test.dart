@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../../../lib/models/player_stats.dart';
-import '../../../lib/utils/tracking/legend_tracker_logic.dart';
+import 'package:unofficial_apex_companion/models/player_stats.dart';
+import 'package:unofficial_apex_companion/utils/tracking/legend_tracker_logic.dart';
 
 void main() {
   group('findTracker', () {
-    final trackers = [
+    const trackers = [
       LegendTracker(key: 'kills', displayName: 'BR Kills', value: 500),
       LegendTracker(key: 'kills2', displayName: 'BR Kills', value: 800),
       LegendTracker(key: 'wins', displayName: 'BR Wins', value: 50),

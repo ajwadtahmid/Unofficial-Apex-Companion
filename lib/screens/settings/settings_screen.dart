@@ -29,7 +29,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: AppTheme.md),
 
           // ── About & Resources ─────────────────────────────────────
-          SectionLabel(label: 'ABOUT & RESOURCES', icon: Icons.info_outline),
+          const SectionLabel(label: 'ABOUT & RESOURCES', icon: Icons.info_outline),
           SettingsCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,13 +47,13 @@ class SettingsScreen extends ConsumerWidget {
                   style: TextStyle(color: AppTheme.muted, fontSize: 11, height: 1.4),
                 ),
                 const Divider(color: AppTheme.surface2, height: 24),
-                LinkRow(
+                const LinkRow(
                   label: 'apexlegendsstatus.com',
                   subtitle: 'Server status. You can check this website for more information.',
                   url: ApiConstants.apexStatusUrl,
                 ),
                 const Divider(color: AppTheme.surface2, height: 24),
-                LinkRow(
+                const LinkRow(
                   label: 'apexlegendsapi.com',
                   subtitle: 'Player stats & legend data are provided by this API.',
                   url: ApiConstants.apexApiUrl,

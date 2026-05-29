@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../lib/utils/storage/rp_snapshot_storage.dart';
-import '../../../lib/utils/formatting/snapshot_types.dart';
+import 'package:unofficial_apex_companion/utils/storage/rp_snapshot_storage.dart';
+import 'package:unofficial_apex_companion/utils/formatting/snapshot_types.dart';
 
 import '../../helpers.dart';
 

@@ -18,7 +18,7 @@ class GeneralSettingsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionLabel(label: 'ACCOUNT', icon: Icons.person_outline),
+        const SectionLabel(label: 'ACCOUNT', icon: Icons.person_outline),
         SettingsCard(
           child: settings.isPlayerSet
               ? _PlayerInfoContent(settings: settings)

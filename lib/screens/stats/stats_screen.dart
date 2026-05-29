@@ -14,7 +14,6 @@ import '../../utils/tracking/snapshot_state_mixin.dart';
 import '../../utils/storage/storage.dart';
 import '../../utils/notifications.dart';
 import '../../utils/theme.dart';
-import '../../widgets/surface_card.dart';
 import '../../widgets/profile_manager_sheet.dart';
 import '../../widgets/widgets.dart';
 
@@ -42,31 +41,31 @@ class _PlayerSetupView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Stats')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppTheme.xl),
+      body: const SingleChildScrollView(
+        padding: EdgeInsets.all(AppTheme.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const SizedBox(height: AppTheme.xl),
-            const Icon(
+            SizedBox(height: AppTheme.xl),
+            Icon(
               Icons.person_search_outlined,
               size: 72,
               color: AppTheme.accent,
             ),
-            const SizedBox(height: AppTheme.md),
-            const Text(
+            SizedBox(height: AppTheme.md),
+            Text(
               'Set Up Your Player',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: AppTheme.sm),
-            const Text(
+            SizedBox(height: AppTheme.sm),
+            Text(
               'Enter your in-game name and platform to start tracking your stats.',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppTheme.muted, height: 1.5),
             ),
-            const SizedBox(height: AppTheme.xl),
-            const PlayerLookupForm(submitLabel: 'Find My Player'),
-            const SizedBox(height: AppTheme.sm),
+            SizedBox(height: AppTheme.xl),
+            PlayerLookupForm(submitLabel: 'Find My Player'),
+            SizedBox(height: AppTheme.sm),
           ],
         ),
       ),
@@ -180,7 +179,7 @@ class _StatsViewState extends ConsumerState<_StatsView> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(settings.name),
-              SizedBox(width: AppTheme.xs),
+              const SizedBox(width: AppTheme.xs),
               const Icon(
                 Icons.keyboard_arrow_down,
                 size: 18,
@@ -449,9 +448,9 @@ class _StatsSkeleton extends StatelessWidget {
                       borderRadius: BorderRadius.all(Radius.circular(4)),
                     ),
                     const SizedBox(height: 6),
-                    Row(
+                    const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
+                      children: [
                         ShimmerBox(width: 48, height: 14),
                         ShimmerBox(width: 80, height: 15),
                         ShimmerBox(width: 48, height: 14),

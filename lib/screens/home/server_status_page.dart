@@ -4,7 +4,6 @@ import '../../constants/api_constants.dart';
 import '../../models/server_status.dart';
 import '../../utils/notifications.dart';
 import '../../utils/theme.dart';
-import '../../widgets/surface_card.dart';
 import '../../widgets/widgets.dart';
 
 // ── Latency color helper ──────────────────────────────────────────────────────

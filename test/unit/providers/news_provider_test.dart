@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import '../../../lib/models/news_article.dart';
-import '../../../lib/providers/api_provider.dart';
-import '../../../lib/providers/news_provider.dart';
-import '../../../lib/services/api_service.dart';
-import '../../../lib/services/news_service.dart';
+import 'package:unofficial_apex_companion/models/news_article.dart';
+import 'package:unofficial_apex_companion/providers/api_provider.dart';
+import 'package:unofficial_apex_companion/providers/news_provider.dart';
+import 'package:unofficial_apex_companion/services/api_service.dart';
+import 'package:unofficial_apex_companion/services/news_service.dart';
 
 class MockNewsService extends Mock implements NewsService {}
 

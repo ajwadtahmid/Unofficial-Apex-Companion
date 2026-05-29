@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../../../lib/models/player_stats.dart';
+import 'package:unofficial_apex_companion/models/player_stats.dart';
 
 void main() {
   group('PlayerStats.fromJson', () {
@@ -120,22 +120,22 @@ void main() {
 
   group('LegendStat', () {
     test('killCount returns 0 when no kills tracker', () {
-      final stat = LegendStat(name: 'Wraith', trackers: []);
+      final stat = const LegendStat(name: 'Wraith', trackers: []);
       expect(stat.killCount, 0);
     });
 
     test('killCount returns kills tracker value', () {
-      final tracker = LegendTracker(key: 'kills', displayName: 'Kills', value: 500);
-      final stat = LegendStat(name: 'Wraith', trackers: [tracker]);
+      const tracker = LegendTracker(key: 'kills', displayName: 'Kills', value: 500);
+      const stat = LegendStat(name: 'Wraith', trackers: [tracker]);
       expect(stat.killCount, 500);
     });
 
     test('merge combines trackers', () {
-      final base = LegendStat(
+      const base = LegendStat(
         name: 'Wraith',
         trackers: [LegendTracker(key: 'kills', displayName: 'Kills', value: 100)],
       );
-      final incoming = LegendStat(
+      const incoming = LegendStat(
         name: 'Wraith',
         trackers: [
           LegendTracker(key: 'kills', displayName: 'Kills', value: 200),
@@ -150,7 +150,7 @@ void main() {
     test('toJson / fromJson roundtrip preserves data', () {
       final stat = LegendStat(
         name: 'Bangalore',
-        trackers: [LegendTracker(key: 'kills', displayName: 'Kills', value: 999)],
+        trackers: const [LegendTracker(key: 'kills', displayName: 'Kills', value: 999)],
         lastUpdated: DateTime(2024, 1, 1),
       );
       final json = stat.toJson();

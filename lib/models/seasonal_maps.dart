@@ -8,14 +8,16 @@ class SeasonalMaps {
 
   factory SeasonalMaps.fromJson(Map<String, dynamic> json) {
     final ranked = (json['ranked'] as List<dynamic>?)
-            ?.map((m) => AppMap(
+            ?.cast<Map<String, dynamic>>()
+            .map((m) => AppMap(
                   id: m['id'] as String? ?? '',
                   name: m['name'] as String? ?? '',
                 ))
             .toList() ??
         [];
     final pubs = (json['pubs'] as List<dynamic>?)
-            ?.map((m) => AppMap(
+            ?.cast<Map<String, dynamic>>()
+            .map((m) => AppMap(
                   id: m['id'] as String? ?? '',
                   name: m['name'] as String? ?? '',
                 ))

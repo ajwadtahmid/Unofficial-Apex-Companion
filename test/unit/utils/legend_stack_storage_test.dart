@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../lib/utils/storage/legend_stack_storage.dart';
+import 'package:unofficial_apex_companion/utils/storage/legend_stack_storage.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
