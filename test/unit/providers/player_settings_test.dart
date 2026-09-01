@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:apexlytics/providers/settings_provider.dart';
+import 'package:apexlytics/utils/error_messages.dart';
 
 /// Builds a [ProviderContainer] backed by an in-memory [SharedPreferences].
 Future<ProviderContainer> makeContainer([
@@ -152,6 +153,129 @@ void main() {
       addTearDown(container.dispose);
 
       expect(container.read(playerSettingsProvider).defaultTab, 3);
+    });
+
+    group('duplicate UID guard', () {
+      test('addProfile refuses a UID already saved', () async {
+        final container = await makeContainer();
+        addTearDown(container.dispose);
+        final notifier = container.read(playerSettingsProvider.notifier);
+
+        await notifier.addProfile('Aceu', 'uid1', 'PC');
+
+        // Different display name and platform — the UID is the identity.
+        await expectLater(
+          notifier.addProfile('Renamed', 'uid1', 'PS4'),
+          throwsA(isA<AppException>()),
+        );
+        expect(container.read(playerSettingsProvider).profiles.length, 1);
+      });
+
+      test('the refusal names the profile already holding the UID', () async {
+        final container = await makeContainer();
+        addTearDown(container.dispose);
+        final notifier = container.read(playerSettingsProvider.notifier);
+
+        await notifier.addProfile('Aceu', 'uid1', 'PC');
+
+        await expectLater(
+          notifier.addProfile('Renamed', 'uid1', 'PC'),
+          throwsA(
+            isA<AppException>().having(
+              (e) => e.message,
+              'message',
+              contains('Aceu'),
+            ),
+          ),
+        );
+      });
+
+      test('addProfile still accepts a distinct UID', () async {
+        final container = await makeContainer();
+        addTearDown(container.dispose);
+        final notifier = container.read(playerSettingsProvider.notifier);
+
+        await notifier.addProfile('Aceu', 'uid1', 'PC');
+        await notifier.addProfile('Hal', 'uid2', 'PC');
+
+        expect(container.read(playerSettingsProvider).profiles.length, 2);
+      });
+
+      test('updateProfile may keep its own UID', () async {
+        final container = await makeContainer();
+        addTearDown(container.dispose);
+        final notifier = container.read(playerSettingsProvider.notifier);
+
+        await notifier.addProfile('Aceu', 'uid1', 'PC');
+        // A rename re-submits the same UID for the same slot — not a duplicate.
+        await notifier.updateProfile(0, 'Aceu2', 'uid1', 'PC');
+
+        expect(
+          container.read(playerSettingsProvider).profiles.single.name,
+          'Aceu2',
+        );
+      });
+
+      test("updateProfile refuses another slot's UID", () async {
+        final container = await makeContainer();
+        addTearDown(container.dispose);
+        final notifier = container.read(playerSettingsProvider.notifier);
+
+        await notifier.addProfile('Aceu', 'uid1', 'PC');
+        await notifier.addProfile('Hal', 'uid2', 'PC');
+
+        await expectLater(
+          notifier.updateProfile(1, 'Hal', 'uid1', 'PC'),
+          throwsA(isA<AppException>()),
+        );
+        expect(
+          container.read(playerSettingsProvider).profiles[1].uid,
+          'uid2',
+          reason: 'the rejected edit must not partially apply',
+        );
+      });
+
+      test('setPlayer refuses a UID held by an inactive slot', () async {
+        final container = await makeContainer();
+        addTearDown(container.dispose);
+        final notifier = container.read(playerSettingsProvider.notifier);
+
+        await notifier.addProfile('Aceu', 'uid1', 'PC');
+        await notifier.addProfile('Hal', 'uid2', 'PC');
+        // Active slot is 1 (addProfile switches to the new profile); pointing it
+        // at slot 0's UID would leave two slots sharing one player's data.
+        await expectLater(
+          notifier.setPlayer('Aceu', 'uid1', 'PC'),
+          throwsA(isA<AppException>()),
+        );
+        expect(container.read(playerSettingsProvider).uid, 'uid2');
+      });
+
+      test('setPlayer may overwrite the active slot with its own UID', () async {
+        final container = await makeContainer();
+        addTearDown(container.dispose);
+        final notifier = container.read(playerSettingsProvider.notifier);
+
+        await notifier.setPlayer('Aceu', 'uid1', 'PC');
+        await notifier.setPlayer('Aceu', 'uid1', 'PS4');
+
+        expect(container.read(playerSettingsProvider).platform, 'PS4');
+        expect(container.read(playerSettingsProvider).profiles.length, 1);
+      });
+
+      test('an empty UID is never treated as a duplicate', () async {
+        final container = await makeContainer({
+          'player_profiles': jsonEncode([
+            {'name': 'Unresolved', 'uid': '', 'platform': 'PC'},
+          ]),
+        });
+        addTearDown(container.dispose);
+        final notifier = container.read(playerSettingsProvider.notifier);
+
+        await notifier.addProfile('AlsoUnresolved', '', 'PC');
+
+        expect(container.read(playerSettingsProvider).profiles.length, 2);
+      });
     });
 
     group('profile cap', () {

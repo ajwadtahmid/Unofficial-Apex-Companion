@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_constants.dart';
 import '../constants/prefs_keys.dart';
 import '../utils/app_logger.dart';
+import '../utils/error_messages.dart';
 import '../utils/formatting/json_utils.dart';
 
 /// Must be overridden in `main` before `runApp` via `ProviderScope(overrides: [...])`.
@@ -355,9 +356,32 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
     );
   }
 
+  /// Throws an [AppException] when [uid] already belongs to a profile other
+  /// than the slot at [ignoreIndex]. An empty UID is unresolved rather than a
+  /// player, and never collides.
+  ///
+  /// Snapshots, ranked history and favourites are all keyed by UID, so two
+  /// slots sharing one would share that data and removing either would strand
+  /// the other.
+  void _assertUidNotTaken(String uid, {int? ignoreIndex}) {
+    if (uid.isEmpty) return;
+    for (var i = 0; i < state.profiles.length; i++) {
+      if (i == ignoreIndex) continue;
+      if (state.profiles[i].uid != uid) continue;
+      final existing = state.profiles[i].name;
+      throw AppException(
+        existing.isEmpty
+            ? 'That player is already saved as a profile.'
+            : '$existing is already saved as a profile.',
+      );
+    }
+  }
+
   Future<void> setPlayer(String name, String uid, String platform) async {
     final profiles = List<PlayerProfile>.from(state.profiles);
     final idx = state.activeProfileIndex;
+    // Overwrites the active slot, so only the *other* slots can collide.
+    _assertUidNotTaken(uid, ignoreIndex: idx);
     final newProfile = PlayerProfile(name: name, uid: uid, platform: platform);
     if (idx < profiles.length) {
       profiles[idx] = newProfile;
@@ -375,9 +399,11 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
     state = state.copyWith(activeProfileIndex: index);
   }
 
-  /// Appends a new profile and switches to it.
+  /// Appends a new profile and switches to it. Throws if [uid] is already
+  /// saved — see [_assertUidNotTaken].
   Future<void> addProfile(String name, String uid, String platform) async {
     if (state.profiles.length >= maxProfileCount) return;
+    _assertUidNotTaken(uid);
     final profiles = [
       ...state.profiles,
       PlayerProfile(name: name, uid: uid, platform: platform),
@@ -389,6 +415,8 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
   }
 
   /// Updates a specific profile slot without switching the active profile.
+  /// Throws if [uid] is already held by a *different* slot — re-saving a slot
+  /// with its own UID unchanged is allowed. See [_assertUidNotTaken].
   Future<void> updateProfile(
     int index,
     String name,
@@ -396,6 +424,7 @@ class PlayerSettingsNotifier extends Notifier<PlayerSettings> {
     String platform,
   ) async {
     if (index < 0 || index >= state.profiles.length) return;
+    _assertUidNotTaken(uid, ignoreIndex: index);
     final profiles = List<PlayerProfile>.from(state.profiles);
     profiles[index] = PlayerProfile(name: name, uid: uid, platform: platform);
     await _saveProfiles(profiles);
