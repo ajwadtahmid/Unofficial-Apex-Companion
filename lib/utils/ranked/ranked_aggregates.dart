@@ -32,6 +32,13 @@ class RankedSummary {
   final String latestRankImg;
   final int totalKills;
   final int totalDamage;
+
+  /// Games whose kills/damage upstream actually reported. Averages divide by
+  /// these rather than [games]: a match carrying no tracker is unknown, not
+  /// zero. A reported 0 is a real bad game and counts normally.
+  final int killsGames;
+  final int damageGames;
+
   final int totalLengthSecs;
   final int wins; // games with positive effective RP
   final int losses; // games with negative effective RP
@@ -43,15 +50,21 @@ class RankedSummary {
     required this.latestRankImg,
     required this.totalKills,
     required this.totalDamage,
+    required this.killsGames,
+    required this.damageGames,
     required this.totalLengthSecs,
     required this.wins,
     required this.losses,
   });
 
   double get avgRpPerGame => games == 0 ? 0 : netRp / games;
-  double get avgKills => games == 0 ? 0 : totalKills / games;
-  double get avgDamage => games == 0 ? 0 : totalDamage / games;
+  double get avgKills => killsGames == 0 ? 0 : totalKills / killsGames;
+  double get avgDamage => damageGames == 0 ? 0 : totalDamage / damageGames;
   double get avgGameLengthSecs => games == 0 ? 0 : totalLengthSecs / games;
+
+  /// Games with no kills/damage reported, for the "based on N games" note.
+  int get killsGamesMissing => games - killsGames;
+  int get damageGamesMissing => games - damageGames;
 
   /// Games that count toward win rate: wins + losses. Excludes RP-neutral games
   /// (pubs and neutralized end-of-split reset artifacts), so it can be < [games].
@@ -67,6 +80,8 @@ class RankedSummary {
     latestRankImg: '',
     totalKills: 0,
     totalDamage: 0,
+    killsGames: 0,
+    damageGames: 0,
     totalLengthSecs: 0,
     wins: 0,
     losses: 0,
@@ -81,10 +96,19 @@ RankedSummary summarize(List<RankedMatch> matches) {
   // Find the newest match for currentRp/rankImg without a full sort.
   var newest = matches.first;
   var netRp = 0, kills = 0, damage = 0, length = 0, wins = 0, losses = 0;
+  var killsGames = 0, damageGames = 0;
   for (final m in matches) {
     netRp += m.effectiveRpChange;
-    kills += m.kills;
-    damage += m.damage;
+    final k = m.kills;
+    if (k != null) {
+      kills += k;
+      killsGames++;
+    }
+    final d = m.damage;
+    if (d != null) {
+      damage += d;
+      damageGames++;
+    }
     length += m.lengthSecs;
     if (m.effectiveRpChange > 0) {
       wins++;
@@ -100,6 +124,8 @@ RankedSummary summarize(List<RankedMatch> matches) {
     latestRankImg: newest.rankImg,
     totalKills: kills,
     totalDamage: damage,
+    killsGames: killsGames,
+    damageGames: damageGames,
     totalLengthSecs: length,
     wins: wins,
     losses: losses,
@@ -114,6 +140,12 @@ class LegendBreakdown {
   final int totalRp; // Σ rpChange on this legend
   final int totalKills;
   final int totalDamage;
+
+  /// Games whose kills/damage upstream reported — the divisor for the averages.
+  /// See [RankedSummary.killsGames].
+  final int killsGames;
+  final int damageGames;
+
   final int totalLengthSecs;
   final int wins;
   final int losses;
@@ -124,14 +156,16 @@ class LegendBreakdown {
     required this.totalRp,
     required this.totalKills,
     required this.totalDamage,
+    required this.killsGames,
+    required this.damageGames,
     required this.totalLengthSecs,
     required this.wins,
     required this.losses,
   });
 
   double get avgRpPerGame => games == 0 ? 0 : totalRp / games;
-  double get avgKills => games == 0 ? 0 : totalKills / games;
-  double get avgDamage => games == 0 ? 0 : totalDamage / games;
+  double get avgKills => killsGames == 0 ? 0 : totalKills / killsGames;
+  double get avgDamage => damageGames == 0 ? 0 : totalDamage / damageGames;
   double get avgLengthSecs => games == 0 ? 0 : totalLengthSecs / games;
   int get decidedGames => wins + losses;
   double get winRate => decidedGames == 0 ? 0 : wins / decidedGames;
@@ -146,10 +180,19 @@ List<LegendBreakdown> legendBreakdowns(List<RankedMatch> matches) {
   }
   final out = byLegend.entries.map((e) {
     var rp = 0, kills = 0, damage = 0, length = 0, wins = 0, losses = 0;
+    var killsGames = 0, damageGames = 0;
     for (final m in e.value) {
       rp += m.effectiveRpChange;
-      kills += m.kills;
-      damage += m.damage;
+      final k = m.kills;
+      if (k != null) {
+        kills += k;
+        killsGames++;
+      }
+      final d = m.damage;
+      if (d != null) {
+        damage += d;
+        damageGames++;
+      }
       length += m.lengthSecs;
       if (m.effectiveRpChange > 0) {
         wins++;
@@ -163,6 +206,8 @@ List<LegendBreakdown> legendBreakdowns(List<RankedMatch> matches) {
       totalRp: rp,
       totalKills: kills,
       totalDamage: damage,
+      killsGames: killsGames,
+      damageGames: damageGames,
       totalLengthSecs: length,
       wins: wins,
       losses: losses,
@@ -180,6 +225,12 @@ class MapBreakdown {
   final int totalRp;
   final int totalKills;
   final int totalDamage;
+
+  /// Games whose kills/damage upstream reported — the divisor for the averages.
+  /// See [RankedSummary.killsGames].
+  final int killsGames;
+  final int damageGames;
+
   final int totalLengthSecs;
   final int wins;
   final int losses;
@@ -191,14 +242,16 @@ class MapBreakdown {
     required this.totalRp,
     required this.totalKills,
     required this.totalDamage,
+    required this.killsGames,
+    required this.damageGames,
     required this.totalLengthSecs,
     required this.wins,
     required this.losses,
   });
 
   double get avgRpPerGame => games == 0 ? 0 : totalRp / games;
-  double get avgKills => games == 0 ? 0 : totalKills / games;
-  double get avgDamage => games == 0 ? 0 : totalDamage / games;
+  double get avgKills => killsGames == 0 ? 0 : totalKills / killsGames;
+  double get avgDamage => damageGames == 0 ? 0 : totalDamage / damageGames;
   double get avgLengthSecs => games == 0 ? 0 : totalLengthSecs / games;
   int get decidedGames => wins + losses;
   double get winRate => decidedGames == 0 ? 0 : wins / decidedGames;
@@ -213,10 +266,19 @@ List<MapBreakdown> mapBreakdowns(List<RankedMatch> matches) {
   }
   final out = byMap.entries.map((e) {
     var rp = 0, kills = 0, damage = 0, length = 0, wins = 0, losses = 0;
+    var killsGames = 0, damageGames = 0;
     for (final m in e.value) {
       rp += m.effectiveRpChange;
-      kills += m.kills;
-      damage += m.damage;
+      final k = m.kills;
+      if (k != null) {
+        kills += k;
+        killsGames++;
+      }
+      final d = m.damage;
+      if (d != null) {
+        damage += d;
+        damageGames++;
+      }
       length += m.lengthSecs;
       if (m.effectiveRpChange > 0) {
         wins++;
@@ -231,6 +293,8 @@ List<MapBreakdown> mapBreakdowns(List<RankedMatch> matches) {
       totalRp: rp,
       totalKills: kills,
       totalDamage: damage,
+      killsGames: killsGames,
+      damageGames: damageGames,
       totalLengthSecs: length,
       wins: wins,
       losses: losses,
@@ -304,8 +368,10 @@ List<RankedSession> sessionize(
     var rp = 0, kills = 0, damage = 0;
     for (final m in bucket) {
       rp += m.effectiveRpChange;
-      kills += m.kills;
-      damage += m.damage;
+      // Session totals are sums, not averages, so an unreported match simply
+      // contributes nothing rather than needing its own coverage count.
+      kills += m.kills ?? 0;
+      damage += m.damage ?? 0;
     }
     sessions.add(RankedSession(
       start: bucket.first.startTime,

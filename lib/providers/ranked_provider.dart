@@ -146,8 +146,6 @@ final rankedSyncProvider = FutureProvider.autoDispose
         ref.read(sharedPreferencesProvider),
       );
       await store.backfillSeasonIds(latestSeasons);
-      // Drain the kills/damage backlog left by the v2 → v3 column migration.
-      await store.backfillKillsDamage();
       return RankedSyncOutcome.synced;
     });
 

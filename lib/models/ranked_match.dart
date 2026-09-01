@@ -12,6 +12,37 @@ import 'dart:convert';
 /// counts as a played game; only its RP value is neutralized in RP aggregates.
 const int kRankedOutlierThreshold = 1000;
 
+/// Stored columns a user may correct by hand, after which sync leaves them
+/// alone. Timestamps are excluded: they derive the row's primary key, its split
+/// classification and its session grouping. `length_secs` is excluded too —
+/// it's not exposed for editing.
+const Set<String> kEditableMatchFields = {
+  'legend',
+  'map_key',
+  'rp_change',
+  'kills',
+  'damage',
+};
+
+/// Encodes [fields] as the comma-delimited, comma-terminated form stored in
+/// `edited_fields`. The leading and trailing commas let SQL test membership
+/// with a plain `instr(edited_fields, ',name,')`.
+String? encodeEditedFields(Set<String> fields) {
+  if (fields.isEmpty) return null;
+  final sorted = fields.toList()..sort();
+  return ',${sorted.join(',')},';
+}
+
+/// Parses the stored `edited_fields` form back into a set, ignoring names that
+/// are no longer editable.
+Set<String> decodeEditedFields(Object? raw) {
+  if (raw is! String || raw.isEmpty) return const {};
+  return {
+    for (final name in raw.split(','))
+      if (kEditableMatchFields.contains(name)) name,
+  };
+}
+
 /// One entry from a match's `gameData` array.
 ///
 /// The `key` is unstable — the same stat shows up under different keys across
@@ -51,11 +82,24 @@ class RankedMatch {
   final bool isPartyFull;
   final List<MatchTracker> trackers;
 
+  /// Kills this match, or null when upstream reported no `"BR Kills"` tracker.
+  /// Null means "not reported" and is excluded from kill averages; a real 0 is
+  /// a played game with no kills and counts normally.
+  final int? kills;
+
+  /// Damage this match, or null when upstream reported no `"BR Damage"`
+  /// tracker. Same null semantics as [kills].
+  final int? damage;
+
   /// The split this match was classified under (e.g. `br_ranked_s29_s2`), or
   /// null/unknown if unclassified. Only ever populated by reading a persisted
   /// row back out of the local history store — a freshly API-parsed match
   /// doesn't know its season until the store derives and saves it.
   final String? seasonId;
+
+  /// Columns the user has corrected by hand. Always empty on a freshly parsed
+  /// API match; populated when reading a persisted row.
+  final Set<String> editedFields;
 
   const RankedMatch({
     required this.uid,
@@ -71,7 +115,10 @@ class RankedMatch {
     required this.endTime,
     required this.isPartyFull,
     required this.trackers,
+    this.kills,
+    this.damage,
     this.seasonId,
+    this.editedFields = const {},
   });
 
   /// Whether this is a Battle Royale match of any kind (ranked or pubs).
@@ -94,6 +141,9 @@ class RankedMatch {
   /// only shown in the History tab and the RP progression graph.
   int get effectiveRpChange => isRankedOutlier ? 0 : rpChange;
 
+  /// Whether any column on this match has been hand-corrected.
+  bool get isEdited => editedFields.isNotEmpty;
+
   /// Looks up a tracker value by its stable human [name] (case-insensitive).
   /// Returns null when the match didn't carry that tracker.
   num? trackerValue(String name) {
@@ -104,21 +154,38 @@ class RankedMatch {
     return null;
   }
 
-  int get kills => trackerValue('BR Kills')?.toInt() ?? 0;
-  int get damage => trackerValue('BR Damage')?.toInt() ?? 0;
+  /// Kills recorded in [trackers], or null when the tracker is absent.
+  static int? killsFrom(List<MatchTracker> trackers) =>
+      _trackerInt(trackers, 'br kills');
 
-  factory RankedMatch.fromJson(Map<String, dynamic> json) {
-    final rawData = json['gameData'];
+  /// Damage recorded in [trackers], or null when the tracker is absent.
+  static int? damageFrom(List<MatchTracker> trackers) =>
+      _trackerInt(trackers, 'br damage');
+
+  static int? _trackerInt(List<MatchTracker> trackers, String lowerName) {
+    for (final t in trackers) {
+      if (t.name.toLowerCase() == lowerName) return t.value.toInt();
+    }
+    return null;
+  }
+
+  /// Parses a match's `gameData` array, skipping placeholder rows (key
+  /// `"empty"` with no label).
+  static List<MatchTracker> trackersFromJson(Object? rawData) {
     final trackers = <MatchTracker>[];
     if (rawData is List) {
       for (final e in rawData) {
         if (e is! Map<String, dynamic>) continue;
         final t = MatchTracker.fromJson(e);
-        // Skip placeholder/empty rows (key "empty" with no label).
         if (t.name.isEmpty) continue;
         trackers.add(t);
       }
     }
+    return trackers;
+  }
+
+  factory RankedMatch.fromJson(Map<String, dynamic> json) {
+    final trackers = trackersFromJson(json['gameData']);
 
     return RankedMatch(
       uid: json['uid']?.toString() ?? '',
@@ -134,6 +201,8 @@ class RankedMatch {
       endTime: _epochToUtc(json['gameEndTimestamp']),
       isPartyFull: json['isPartyFull'] as bool? ?? false,
       trackers: trackers,
+      kills: killsFrom(trackers),
+      damage: damageFrom(trackers),
     );
   }
 
@@ -156,6 +225,9 @@ class RankedMatch {
 
   /// Stable, unique key for persistence — one match per player per start time.
   /// The API has no match ID, so `uid` + start-second identifies a match.
+  ///
+  /// Only ever read when *inserting*. A stored row keeps the id it was created
+  /// with, so correcting a field can never spawn a second row for one match.
   String get dedupKey => '${uid}_${startTime.millisecondsSinceEpoch ~/ 1000}';
 
   /// Flat column map for the local database (and the export/import JSON).
@@ -177,6 +249,9 @@ class RankedMatch {
     'trackers': jsonEncode([
       for (final t in trackers) {'key': t.key, 'name': t.name, 'value': t.value},
     ]),
+    'kills': kills,
+    'damage': damage,
+    'edited_fields': encodeEditedFields(editedFields),
   };
 
   factory RankedMatch.fromStoredMap(Map<String, Object?> m) {
@@ -220,7 +295,12 @@ class RankedMatch {
       ),
       isPartyFull: (m['is_party_full'] as num?)?.toInt() == 1,
       trackers: trackers,
+      // The stored columns win over the trackers blob: they carry any hand
+      // correction, and the blob stays as upstream sent it.
+      kills: (m['kills'] as num?)?.toInt(),
+      damage: (m['damage'] as num?)?.toInt(),
       seasonId: m['season_id'] as String?,
+      editedFields: decodeEditedFields(m['edited_fields']),
     );
   }
 }

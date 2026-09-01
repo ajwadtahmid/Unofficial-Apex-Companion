@@ -43,6 +43,38 @@ void main() {
     'map': mapKey,
   });
 
+  /// [m] as a row carrying only [columns], for inserting into the deliberately
+  /// older schemas the migration tests build.
+  Map<String, Object?> rowFor(RankedMatch m, Set<String> columns) => {
+    for (final e in m.toStoredMap().entries)
+      if (columns.contains(e.key)) e.key: e.value,
+  };
+
+  const v1Columns = {
+    'id', 'uid', 'player_name', 'legend', 'game_mode', 'map_key', 'rp_change',
+    'cumulative_rp', 'rank_img', 'length_secs', 'start_ms', 'end_ms',
+    'is_party_full', 'trackers',
+  };
+  const v2Columns = {...v1Columns, 'season_id'};
+  const v3Columns = {...v2Columns, 'kills', 'damage'};
+
+  /// A match upstream served with an empty `gameData` — a real and fairly
+  /// common shape, and the reason kills/damage have to be nullable.
+  RankedMatch untracked(String uid, int startSecs, {int rp = 10}) =>
+      RankedMatch.fromJson({
+        'uid': uid,
+        'name': 'Tester',
+        'legendPlayed': 'Axle',
+        'gameMode': 'BATTLE_ROYALE',
+        'gameLengthSecs': 600,
+        'gameStartTimestamp': startSecs,
+        'gameEndTimestamp': startSecs + 600,
+        'gameData': const [],
+        'BRScoreChange': rp,
+        'BRScore': 1000,
+        'map': 'olympus_rotation',
+      });
+
   test('persists matches and returns them newest first', () async {
     final store = RankedHistoryStore(overridePath: inMemoryDatabasePath);
     addTearDown(store.close);
@@ -264,7 +296,7 @@ void main() {
           },
         ),
       );
-      await v1.insert('ranked_matches', match('1', 100).toStoredMap());
+      await v1.insert('ranked_matches', rowFor(match('1', 100), v1Columns));
       await v1.close();
 
       // Reopen through the store (version 2) → triggers onUpgrade.
@@ -319,20 +351,180 @@ void main() {
           },
         ),
       );
-      await v2.insert('ranked_matches', match('1', 100).toStoredMap());
+      await v2.insert('ranked_matches', rowFor(match('1', 100), v2Columns));
       await v2.close();
 
-      // Reopen through the store (version 3) → onUpgrade adds the columns NULL.
+      // Reopening through the store runs every migration, ending with the v6
+      // repair that derives kills/damage from each row's trackers blob.
       final store = RankedHistoryStore(overridePath: path);
       addTearDown(store.close);
-      expect((await store.exportRows()).single['kills'], isNull);
 
-      await store.backfillKillsDamage();
       final row = (await store.exportRows()).single;
       expect(row['kills'], 3);
       expect(row['damage'], 1000);
     },
   );
+
+  test('the v6 repair writes null for a match that carried no trackers', () async {
+    final dir = await Directory.systemTemp.createTemp('rhs_mig6');
+    addTearDown(() => dir.delete(recursive: true));
+    final path = p.join(dir.path, 'ranked_history.db');
+
+    // A v3 database whose backfill wrote 0 for an unreported stat.
+    final v3 = await databaseFactory.openDatabase(
+      path,
+      options: OpenDatabaseOptions(
+        version: 3,
+        onCreate: (db, _) async {
+          await db.execute('''
+            CREATE TABLE ranked_matches (
+              id TEXT PRIMARY KEY, uid TEXT NOT NULL, player_name TEXT,
+              legend TEXT, game_mode TEXT, map_key TEXT, rp_change INTEGER,
+              cumulative_rp INTEGER, rank_img TEXT, length_secs INTEGER,
+              start_ms INTEGER, end_ms INTEGER, is_party_full INTEGER,
+              trackers TEXT, season_id TEXT, kills INTEGER, damage INTEGER
+            )
+          ''');
+        },
+      ),
+    );
+    await v3.insert('ranked_matches', {
+      ...rowFor(untracked('1', 100), v3Columns),
+      'kills': 0,
+      'damage': 0,
+    });
+    await v3.close();
+
+    final store = RankedHistoryStore(overridePath: path);
+    addTearDown(store.close);
+
+    final row = (await store.exportRows()).single;
+    expect(row['kills'], isNull, reason: 'an empty blob means unreported');
+    expect(row['damage'], isNull);
+  });
+
+  group('hand-edited matches', () {
+    Future<RankedHistoryStore> storeWithMatch(RankedMatch m) async {
+      final store = RankedHistoryStore(overridePath: inMemoryDatabasePath);
+      addTearDown(store.close);
+      await store.upsertAll(m.uid, [m]);
+      return store;
+    }
+
+    test('editMatch writes the value and flags the column', () async {
+      final m = untracked('1', 100);
+      final store = await storeWithMatch(m);
+
+      await store.editMatch(m.dedupKey, {'kills': 4, 'damage': 1500});
+
+      final stored = (await store.getAll('1')).single;
+      expect(stored.kills, 4);
+      expect(stored.damage, 1500);
+      expect(stored.editedFields, {'damage', 'kills'});
+    });
+
+    test('a later sync leaves edited columns alone', () async {
+      final m = match('1', 100); // upstream reports 3 kills / 1000 damage
+      final store = await storeWithMatch(m);
+
+      await store.editMatch(m.dedupKey, {'kills': 9});
+      await store.upsertAll('1', [m]); // same match served again
+
+      final stored = (await store.getAll('1')).single;
+      expect(stored.kills, 9, reason: 'the correction must survive');
+      expect(stored.damage, 1000, reason: 'unedited columns still refresh');
+    });
+
+    test('re-syncing an edited match never creates a second row', () async {
+      final m = match('1', 100);
+      final store = await storeWithMatch(m);
+
+      await store.editMatch(m.dedupKey, {'legend': 'Wraith'});
+      await store.upsertAll('1', [m]);
+      await store.upsertAll('1', [m]);
+
+      expect(await store.count('1'), 1);
+      expect((await store.getAll('1')).single.legend, 'Wraith');
+    });
+
+    test('editing keeps the row id it was created with', () async {
+      final m = match('1', 100);
+      final store = await storeWithMatch(m);
+      final originalId = m.dedupKey;
+
+      await store.editMatch(originalId, {'rp_change': 42});
+
+      final rows = await store.exportRows();
+      expect(rows.single['id'], originalId);
+      expect(rows.single['rp_change'], 42);
+    });
+
+    test('length_secs is not editable', () async {
+      final m = match('1', 100);
+      final store = await storeWithMatch(m);
+
+      expect(
+        () => store.editMatch(m.dedupKey, {'length_secs': 42}),
+        throwsArgumentError,
+      );
+    });
+
+    test('clearEdits lets the next sync overwrite the column again', () async {
+      final m = match('1', 100);
+      final store = await storeWithMatch(m);
+
+      await store.editMatch(m.dedupKey, {'kills': 9});
+      await store.clearEdits(m.dedupKey, field: 'kills');
+      await store.upsertAll('1', [m]);
+
+      final stored = (await store.getAll('1')).single;
+      expect(stored.kills, 3);
+      expect(stored.isEdited, isFalse);
+    });
+
+    test('clearEdits with no field drops every flag', () async {
+      final m = match('1', 100);
+      final store = await storeWithMatch(m);
+
+      await store.editMatch(m.dedupKey, {'kills': 9, 'legend': 'Wraith'});
+      await store.clearEdits(m.dedupKey);
+
+      expect((await store.getAll('1')).single.isEdited, isFalse);
+    });
+
+    test('a non-editable column is rejected', () async {
+      final m = match('1', 100);
+      final store = await storeWithMatch(m);
+
+      expect(
+        () => store.editMatch(m.dedupKey, {'uid': '2'}),
+        throwsArgumentError,
+      );
+    });
+
+    test('editing an unknown match is a no-op', () async {
+      final store = await storeWithMatch(match('1', 100));
+      await store.editMatch('nope', {'kills': 1});
+      expect(await store.count('1'), 1);
+    });
+  });
+
+  test('aggregates skip unreported kills but keep the game', () async {
+    final store = RankedHistoryStore(overridePath: inMemoryDatabasePath);
+    addTearDown(store.close);
+    // Two matches with 3 kills each, one with no tracker at all.
+    await store.upsertAll('1', [
+      match('1', 100),
+      match('1', 2000),
+      untracked('1', 4000),
+    ]);
+
+    final summary = await store.summaryFor('1');
+    expect(summary.games, 3, reason: 'the unreported game was still played');
+    expect(summary.killsGames, 2);
+    expect(summary.totalKills, 6);
+    expect(summary.avgKills, 3.0, reason: 'divided by 2, not 3');
+  });
 
   group('netRpInWindow', () {
     // Window spanning matches at t=2000s onwards (each match ends 600s later).
@@ -636,15 +828,11 @@ void main() {
       }
     }
 
-    test('kills/damage and season-id backfills both use their index', () async {
+    test('the season-id backfill uses its index', () async {
       final store = RankedHistoryStore(overridePath: dbPath);
       await store.upsertAll('1', [match('1', 100), match('1', 200)]);
       await store.close(); // flush schema + rows to the file for a 2nd connection
 
-      expect(
-        await planFor('kills IS NULL OR damage IS NULL'),
-        contains('idx_needs_kills_damage'),
-      );
       expect(
         await planFor("season_id IS NULL OR season_id = '$kUnknownSeasonId'"),
         contains('idx_needs_season_id'),

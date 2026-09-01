@@ -93,7 +93,9 @@ void main() {
       expect(m.legend, 'Unknown');
       expect(m.gameMode, 'UNKNOWN');
       expect(m.mapKey, 'UNKNOWN');
-      expect(m.kills, 0);
+      // No tracker means "not reported", which is not a scoreless game.
+      expect(m.kills, isNull);
+      expect(m.damage, isNull);
       expect(m.trackers, isEmpty);
     });
 
@@ -149,9 +151,63 @@ void main() {
       row['trackers'] = '{not valid json';
       final restored = RankedMatch.fromStoredMap(row);
       expect(restored.trackers, isEmpty);
+      // kills/damage live in their own columns, so they survive a blob that
+      // can no longer be parsed.
+      expect(restored.kills, 3);
+      expect(restored.damage, 1387);
+      expect(restored.legend, 'Axle'); // the rest of the row still hydrates
+    });
+
+    test('an absent tracker round-trips as null, not zero', () {
+      final json = brMatch()..['gameData'] = const [];
+      final row = RankedMatch.fromJson(json).toStoredMap();
+      expect(row['kills'], isNull);
+
+      final restored = RankedMatch.fromStoredMap(row);
+      expect(restored.kills, isNull);
+      expect(restored.damage, isNull);
+    });
+
+    test('a reported zero round-trips as zero', () {
+      final json = brMatch()
+        ..['gameData'] = [
+          {'key': 'kills', 'value': 0, 'name': 'BR Kills'},
+          {'key': 'damage', 'value': 0, 'name': 'BR Damage'},
+        ];
+      final restored = RankedMatch.fromStoredMap(
+        RankedMatch.fromJson(json).toStoredMap(),
+      );
       expect(restored.kills, 0);
       expect(restored.damage, 0);
-      expect(restored.legend, 'Axle'); // the rest of the row still hydrates
+    });
+  });
+
+  group('edited fields', () {
+    test('encode/decode round-trips and sorts', () {
+      expect(encodeEditedFields({'damage', 'kills'}), ',damage,kills,');
+      expect(decodeEditedFields(',damage,kills,'), {'damage', 'kills'});
+    });
+
+    test('an empty set encodes as null', () {
+      expect(encodeEditedFields(const {}), isNull);
+      expect(decodeEditedFields(null), isEmpty);
+      expect(decodeEditedFields(''), isEmpty);
+    });
+
+    test('names that are not editable are dropped on decode', () {
+      expect(decodeEditedFields(',kills,uid,'), {'kills'});
+    });
+
+    test('a stored row exposes its edited fields', () {
+      final row = RankedMatch.fromJson(brMatch()).toStoredMap();
+      row['edited_fields'] = ',damage,';
+      final m = RankedMatch.fromStoredMap(row);
+      expect(m.isEdited, isTrue);
+      expect(m.editedFields, {'damage'});
+    });
+
+    test('a freshly parsed API match is never marked edited', () {
+      expect(RankedMatch.fromJson(brMatch()).isEdited, isFalse);
     });
   });
 }

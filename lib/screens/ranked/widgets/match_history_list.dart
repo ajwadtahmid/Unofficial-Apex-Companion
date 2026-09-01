@@ -7,6 +7,7 @@ import '../../../utils/formatting/format.dart'
     show formatNumber, timeAgo, formatDuration;
 import '../../../utils/theme.dart';
 import '../../../widgets/legend_asset_image.dart';
+import 'match_edit_sheet.dart';
 import 'match_history_items.dart';
 
 /// Day-grouped match list with session breaks and tap-through detail sheets.
@@ -403,7 +404,10 @@ class _MatchRow extends StatelessWidget {
                   const _CasualTag(),
                 const SizedBox(height: 2),
                 Text(
-                  '${match.kills} K · ${formatNumber(match.damage)} dmg',
+                  // An em dash marks a stat upstream never reported, which is
+                  // not the same as a scoreless game.
+                  '${match.kills ?? '—'} K · '
+                  '${match.damage == null ? '—' : formatNumber(match.damage!)} dmg',
                   style: const TextStyle(color: AppTheme.muted, fontSize: 11),
                 ),
               ],
@@ -476,6 +480,30 @@ class _OutlierTag extends StatelessWidget {
   }
 }
 
+/// Marks a match carrying at least one hand-corrected stat.
+class _EditedChip extends StatelessWidget {
+  const _EditedChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppTheme.accent.withAlpha(30),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+      ),
+      child: const Text(
+        'Edited',
+        style: TextStyle(
+          color: AppTheme.accent,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
 // ── Detail sheet ────────────────────────────────────────────────────────────
 
 class _MatchDetailSheet extends StatelessWidget {
@@ -509,6 +537,18 @@ class _MatchDetailSheet extends StatelessWidget {
                 ),
                 const SizedBox(width: AppTheme.sm),
                 _ModeChip(ranked: ranked),
+                if (match.isEdited) ...[
+                  const SizedBox(width: AppTheme.xs),
+                  const _EditedChip(),
+                ],
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  color: AppTheme.muted,
+                  tooltip: 'Correct this match',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => showMatchEditSheet(context, match),
+                ),
               ],
             ),
             const SizedBox(height: AppTheme.sm),

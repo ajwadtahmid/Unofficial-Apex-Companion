@@ -21,13 +21,12 @@ import '../ranked/ranked_aggregates.dart';
 class RankedHistoryStore {
   static const _dbName = 'ranked_history.db';
   static const table = 'ranked_matches';
-  static const _version = 5;
+  static const _version = 6;
 
-  // Predicates for the two lazy backfills' "rows still needing work" scope.
-  // Each is used verbatim by both a partial index and its backfill query — they
-  // must stay byte-identical, or SQLite won't apply the index and the backfill
-  // falls back to a full-table scan. Kept as constants so the two can't drift.
-  static const _needsKillsDamage = 'kills IS NULL OR damage IS NULL';
+  // Scope of the lazy season backfill — the rows it still has work to do on.
+  // Used verbatim by both a partial index and the backfill query, which must
+  // stay byte-identical or SQLite won't apply the index and the backfill falls
+  // back to a full-table scan. One constant, so the two can't drift.
   static const _needsSeasonId =
       "season_id IS NULL OR season_id = '$kUnknownSeasonId'";
 
@@ -65,7 +64,8 @@ class RankedHistoryStore {
             trackers TEXT,
             season_id TEXT,
             kills INTEGER,
-            damage INTEGER
+            damage INTEGER,
+            edited_fields TEXT
           )
         ''');
         await db.execute(
@@ -78,7 +78,7 @@ class RankedHistoryStore {
           'CREATE INDEX idx_ranked_scope '
           'ON $table (uid, game_mode, rp_change)',
         );
-        await _createBackfillIndexes(db);
+        await _createSeasonBackfillIndex(db);
       },
       onUpgrade: (db, oldVersion, _) async {
         // v1 → v2: add the derived season/split column + its index. Existing
@@ -101,7 +101,7 @@ class RankedHistoryStore {
         // has to touch, so those passes stop full-scanning the table on every
         // sync once the backlog is drained.
         if (oldVersion < 4) {
-          await _createBackfillIndexes(db);
+          await _createSeasonBackfillIndex(db);
         }
         // v4 → v5: index the ranked-scope prefix shared by every SQL aggregate
         // (uid + BATTLE_ROYALE + RP-changed), so the Lifetime queries narrow to
@@ -112,25 +112,62 @@ class RankedHistoryStore {
             'ON $table (uid, game_mode, rp_change)',
           );
         }
+        // v5 → v6: hand-editable rows, and NULL kills/damage meaning "upstream
+        // reported no tracker" rather than "not backfilled yet".
+        //
+        // The old lazy backfill and its partial index are dropped with it: its
+        // predicate was `kills IS NULL OR damage IS NULL`, which every
+        // legitimately unreported row now matches permanently, so the index
+        // could never drain and the pass would full-scan on every sync.
+        // [_repairTrackerColumns] replaces it as a one-time pass.
+        if (oldVersion < 6) {
+          await db.execute('ALTER TABLE $table ADD COLUMN edited_fields TEXT');
+          await db.execute('DROP INDEX IF EXISTS idx_needs_kills_damage');
+          await _repairTrackerColumns(db);
+        }
       },
     );
     return _db!;
   }
 
-  /// Partial indexes scoped to the "still needs backfilling" rows. SQLite drops
-  /// a row from a partial index the moment an UPDATE makes it stop matching the
-  /// predicate, so once a backfill fills every legacy row its index is empty and
-  /// the backfill's scan touches nothing — no per-sync full table scan, and no
-  /// app-side "already done" bookkeeping to maintain or reset.
-  Future<void> _createBackfillIndexes(Database db) async {
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_needs_kills_damage '
-      'ON $table (id) WHERE $_needsKillsDamage',
-    );
+  /// Partial index scoped to the rows the season backfill still has to touch.
+  /// SQLite drops a row from a partial index the moment an UPDATE makes it stop
+  /// matching the predicate, so once every legacy row is classified the index is
+  /// empty and the backfill's scan touches nothing — no per-sync full table
+  /// scan, and no app-side "already done" bookkeeping to maintain or reset.
+  Future<void> _createSeasonBackfillIndex(Database db) async {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_needs_season_id '
       'ON $table (id) WHERE $_needsSeasonId',
     );
+  }
+
+  /// Re-derives every row's [kills]/[damage] from its stored `trackers` blob,
+  /// writing NULL where the blob carries no such tracker.
+  ///
+  /// The v2 → v3 migration and its backfill wrote 0 for an absent tracker,
+  /// which is indistinguishable from a real scoreless game and drags every
+  /// average down. The blob is untouched by all of that, so the true value is
+  /// still recoverable for history recorded before this fix.
+  Future<void> _repairTrackerColumns(Database db) async {
+    final rows = await db.query(table, columns: ['id', 'trackers']);
+    if (rows.isEmpty) return;
+    final batch = db.batch();
+    for (final r in rows) {
+      final trackers = RankedMatch.fromStoredMap({
+        'trackers': r['trackers'],
+      }).trackers;
+      batch.update(
+        table,
+        {
+          'kills': RankedMatch.killsFrom(trackers),
+          'damage': RankedMatch.damageFrom(trackers),
+        },
+        where: 'id = ?',
+        whereArgs: [r['id']],
+      );
+    }
+    await batch.commit(noResult: true);
   }
 
   /// Mobile's native sqflite factory returns a guaranteed-existing app
@@ -148,16 +185,29 @@ class RankedHistoryStore {
     return p.join(dir.path, _dbName);
   }
 
+  /// `col = CASE WHEN <col is flagged edited> THEN col ELSE excluded.col END`
+  /// for every user-editable column. The comma-delimited `edited_fields` form
+  /// lets membership be a plain `instr` test.
+  static String get _editAwareAssignments => [
+    for (final f in kEditableMatchFields)
+      "$f = CASE WHEN instr(COALESCE(edited_fields, ''), ',$f,') > 0 "
+          'THEN $f ELSE excluded.$f END',
+  ].join(',\n          ');
+
   /// Inserts/updates [matches] for [uid]. Idempotent via the primary key.
   ///
-  /// Every column except [season_id] is overwritten unconditionally on
-  /// conflict. [season_id] only ever *upgrades* — a NULL or [kUnknownSeasonId]
-  /// row adopts the freshly-derived id when [seasons] yields a real one, but a
-  /// row that already carries a real season id is never touched again, even if
-  /// this call's [seasons] is empty/incomplete and would derive [kUnknownSeasonId]
-  /// or nothing at all. This is what lets [backfillSeasonIds] and this method
-  /// safely re-run as often as needed without ever demoting a correct
-  /// classification back to unknown.
+  /// Three groups of columns behave differently on conflict:
+  ///
+  /// - Most are overwritten unconditionally from the incoming row.
+  /// - [kEditableMatchFields] keep a hand-corrected value and are otherwise
+  ///   overwritten. `edited_fields` itself is omitted from the SET clause, so a
+  ///   sync can never clear the flags that protect them.
+  /// - [season_id] only ever *upgrades* — a NULL or [kUnknownSeasonId] row
+  ///   adopts the freshly-derived id when [seasons] yields a real one, but a row
+  ///   already carrying a real season id is never touched again, even if this
+  ///   call's [seasons] is empty or incomplete. That is what lets
+  ///   [backfillSeasonIds] and this method re-run as often as needed without
+  ///   demoting a correct classification back to unknown.
   Future<void> upsertAll(
     String uid,
     List<RankedMatch> matches, {
@@ -176,24 +226,19 @@ class RankedHistoryStore {
         INSERT INTO $table (
           id, uid, player_name, legend, game_mode, map_key, rp_change,
           cumulative_rp, rank_img, length_secs, start_ms, end_ms,
-          is_party_full, trackers, season_id, kills, damage
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          is_party_full, trackers, season_id, kills, damage, edited_fields
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           uid = excluded.uid,
           player_name = excluded.player_name,
-          legend = excluded.legend,
           game_mode = excluded.game_mode,
-          map_key = excluded.map_key,
-          rp_change = excluded.rp_change,
           cumulative_rp = excluded.cumulative_rp,
           rank_img = excluded.rank_img,
-          length_secs = excluded.length_secs,
           start_ms = excluded.start_ms,
           end_ms = excluded.end_ms,
           is_party_full = excluded.is_party_full,
           trackers = excluded.trackers,
-          kills = excluded.kills,
-          damage = excluded.damage,
+          $_editAwareAssignments,
           season_id = CASE
             WHEN excluded.season_id IS NOT NULL
                  AND excluded.season_id != '$kUnknownSeasonId'
@@ -218,8 +263,9 @@ class RankedHistoryStore {
           row['is_party_full'],
           row['trackers'],
           derivedSeasonId,
-          m.kills,
-          m.damage,
+          row['kills'],
+          row['damage'],
+          row['edited_fields'],
         ],
       );
     }
@@ -263,34 +309,66 @@ class RankedHistoryStore {
     if (changed) await batch.commit(noResult: true);
   }
 
-  /// Fills the [kills]/[damage] columns for rows that predate them (v2 → v3
-  /// migration left them NULL) by parsing each row's stored `trackers` blob.
-  /// New rows are stamped by [upsertAll] on write, so this only ever touches
-  /// the legacy backlog and is a cheap no-op once drained — safe to call on
-  /// each launch, like [backfillSeasonIds].
-  Future<void> backfillKillsDamage() async {
-    final db = await _open();
-    // Uses [_needsKillsDamage] verbatim so SQLite can serve it from the matching
-    // partial index instead of scanning every row.
-    final rows = await db.query(
-      table,
-      columns: ['id', 'trackers'],
-      where: _needsKillsDamage,
-    );
-    if (rows.isEmpty) return;
-    final batch = db.batch();
-    for (final r in rows) {
-      // Only `trackers` matters here; fromStoredMap defaults the rest and
-      // exposes the same BR Kills / BR Damage lookup upsert uses.
-      final m = RankedMatch.fromStoredMap({'trackers': r['trackers']});
-      batch.update(
-        table,
-        {'kills': m.kills, 'damage': m.damage},
-        where: 'id = ?',
-        whereArgs: [r['id']],
-      );
+  /// Applies hand corrections to the match [id] and flags each changed column
+  /// so later syncs leave it alone.
+  ///
+  /// Keys of [values] must be in [kEditableMatchFields]; anything else throws.
+  /// The row's `id` is never rewritten, so correcting a field can't produce a
+  /// second row for the same match. Flags accumulate across calls.
+  Future<void> editMatch(String id, Map<String, Object?> values) async {
+    final invalid = values.keys.toSet().difference(kEditableMatchFields);
+    if (invalid.isNotEmpty) {
+      throw ArgumentError('Not editable: ${invalid.join(', ')}');
     }
-    await batch.commit(noResult: true);
+    if (values.isEmpty) return;
+    final db = await _open();
+    final existing = await db.query(
+      table,
+      columns: ['edited_fields'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (existing.isEmpty) return;
+    final flags = {
+      ...decodeEditedFields(existing.first['edited_fields']),
+      ...values.keys,
+    };
+    await db.update(
+      table,
+      {...values, 'edited_fields': encodeEditedFields(flags)},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Drops the edited flag on [field] for the match [id], or on every field
+  /// when [field] is null.
+  ///
+  /// The pre-edit values aren't kept, so the column holds the corrected value
+  /// until the next sync overwrites it with whatever upstream is serving.
+  Future<void> clearEdits(String id, {String? field}) async {
+    final db = await _open();
+    final existing = await db.query(
+      table,
+      columns: ['edited_fields'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (existing.isEmpty) return;
+    final flags = {...decodeEditedFields(existing.first['edited_fields'])};
+    if (field == null) {
+      flags.clear();
+    } else {
+      flags.remove(field);
+    }
+    await db.update(
+      table,
+      {'edited_fields': encodeEditedFields(flags)},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   /// Match count per season id for [uid] (unclassified NULL rows omitted). The
@@ -390,6 +468,8 @@ class RankedHistoryStore {
       COUNT(*) AS games,
       COALESCE(SUM(kills), 0) AS kills,
       COALESCE(SUM(damage), 0) AS damage,
+      COUNT(kills) AS kills_games,
+      COUNT(damage) AS damage_games,
       COALESCE(SUM(length_secs), 0) AS length_secs,
       COALESCE(SUM(CASE WHEN ABS(rp_change) >= $kRankedOutlierThreshold
                         THEN 0 ELSE rp_change END), 0) AS net_rp,
@@ -422,6 +502,8 @@ class RankedHistoryStore {
       latestRankImg: newest?['rank_img'] as String? ?? '',
       totalKills: (agg['kills'] as num).toInt(),
       totalDamage: (agg['damage'] as num).toInt(),
+      killsGames: (agg['kills_games'] as num).toInt(),
+      damageGames: (agg['damage_games'] as num).toInt(),
       totalLengthSecs: (agg['length_secs'] as num).toInt(),
       wins: (agg['wins'] as num).toInt(),
       losses: (agg['losses'] as num).toInt(),
@@ -449,6 +531,8 @@ class RankedHistoryStore {
           totalRp: (r['net_rp'] as num).toInt(),
           totalKills: (r['kills'] as num).toInt(),
           totalDamage: (r['damage'] as num).toInt(),
+          killsGames: (r['kills_games'] as num).toInt(),
+          damageGames: (r['damage_games'] as num).toInt(),
           totalLengthSecs: (r['length_secs'] as num).toInt(),
           wins: (r['wins'] as num).toInt(),
           losses: (r['losses'] as num).toInt(),
@@ -478,6 +562,8 @@ class RankedHistoryStore {
           totalRp: (r['net_rp'] as num).toInt(),
           totalKills: (r['kills'] as num).toInt(),
           totalDamage: (r['damage'] as num).toInt(),
+          killsGames: (r['kills_games'] as num).toInt(),
+          damageGames: (r['damage_games'] as num).toInt(),
           totalLengthSecs: (r['length_secs'] as num).toInt(),
           wins: (r['wins'] as num).toInt(),
           losses: (r['losses'] as num).toInt(),
