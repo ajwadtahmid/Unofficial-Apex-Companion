@@ -31,39 +31,8 @@ void openSessionHistory(
   ));
 }
 
-/// Full list of recent sessions (newest first). Tapping a row drills into that
-/// session's games.
-class RankedSessionsScreen extends StatelessWidget {
-  final List<RankedSession> sessions;
-  final Future<void> Function() onRefresh;
-
-  const RankedSessionsScreen({
-    super.key,
-    required this.sessions,
-    required this.onRefresh,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Recent sessions')),
-      body: SafeArea(
-        child: ListView.separated(
-          padding: const EdgeInsets.all(AppTheme.md),
-          itemCount: sessions.length,
-          separatorBuilder: (_, _) => const SizedBox(height: AppTheme.sm),
-          itemBuilder: (context, i) => SessionRecapTile(
-            session: sessions[i],
-            onTap: () => openSessionHistory(context, sessions[i], onRefresh),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A tappable session summary as its own card. Used by the recent-sessions
-/// screen; the Overview card embeds [SessionRecapBody] directly instead.
+/// A tappable session summary as its own card. Used by the Squad & Sessions
+/// screen's session list.
 class SessionRecapTile extends StatelessWidget {
   final RankedSession session;
   final VoidCallback onTap;
@@ -85,7 +54,7 @@ class SessionRecapTile extends StatelessWidget {
 }
 
 /// Card-less session summary: date, net RP, and a stat strip (games · kills ·
-/// time · top legend). Shared by [SessionRecapTile] and the Overview card.
+/// time · top legend). Used by [SessionRecapTile].
 class SessionRecapBody extends StatelessWidget {
   final RankedSession session;
   const SessionRecapBody({super.key, required this.session});

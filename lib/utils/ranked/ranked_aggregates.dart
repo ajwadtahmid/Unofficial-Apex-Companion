@@ -4,6 +4,7 @@
 /// isolation. The UI layer (Phase 2+) consumes these view models directly.
 library;
 
+import '../../constants/legend_constants.dart';
 import '../../constants/rank_constants.dart';
 import '../../constants/ranked_map_constants.dart';
 import '../../models/ranked_match.dart';
@@ -303,6 +304,61 @@ List<MapBreakdown> mapBreakdowns(List<RankedMatch> matches) {
   return out;
 }
 
+// ── Legend × Map matrix ──────────────────────────────────────────────────────
+//
+// A standalone drill-down, self-contained on purpose: it touches no other
+// aggregate here and nothing else calls it, so it stays a one-function,
+// one-widget feature.
+
+class LegendMapCell {
+  final String legend;
+  final String mapName;
+  final int games;
+  final int totalRp;
+  final int wins;
+  final int losses;
+
+  const LegendMapCell({
+    required this.legend,
+    required this.mapName,
+    required this.games,
+    required this.totalRp,
+    required this.wins,
+    required this.losses,
+  });
+
+  double get avgRpPerGame => games == 0 ? 0 : totalRp / games;
+}
+
+/// Per (legend, map) breakdown, restricted to legends in [kLegends] and maps in
+/// [kRankedMaps] — a raw or "Unknown" value from either is dropped rather than
+/// shown as its own row/column. Both names are canonicalized through their
+/// constant lookup, so map-key variants that mean the same map (e.g.
+/// `worlds_edge` and `worlds_edge_rotation`) land in one cell. Only pairs with
+/// at least one game appear — there is no zero-filled grid to prune from.
+/// Assumes [matches] is already ranked-only filtered.
+List<LegendMapCell> legendMapBreakdowns(List<RankedMatch> matches) {
+  final byPair = <(String, String), List<RankedMatch>>{};
+  for (final m in matches) {
+    final legend = kLegendsByName[m.legend.toLowerCase()]?.name;
+    final mapName = rankedMapInfo(m.mapKey)?.name;
+    if (legend == null || mapName == null) continue;
+    byPair.putIfAbsent((legend, mapName), () => []).add(m);
+  }
+
+  return [
+    for (final entry in byPair.entries)
+      LegendMapCell(
+        legend: entry.key.$1,
+        mapName: entry.key.$2,
+        games: entry.value.length,
+        totalRp: entry.value.fold(0, (sum, m) => sum + m.effectiveRpChange),
+        wins: entry.value.where((m) => m.effectiveRpChange > 0).length,
+        losses: entry.value.where((m) => m.effectiveRpChange < 0).length,
+      ),
+  ];
+}
+
 // ── Session detection ───────────────────────────────────────────────────────
 
 class RankedSession {
@@ -582,9 +638,24 @@ class RankedInsight {
 /// Assumes [matches] is already ranked-only filtered.
 List<RankedInsight> generateInsights(List<RankedMatch> matches) {
   if (matches.isEmpty) return [];
+  return generateInsightsFromAggregates(
+    summarize(matches),
+    legendBreakdowns(matches),
+    mapBreakdowns(matches),
+  );
+}
+
+/// Same as [generateInsights], but from already-computed aggregates rather
+/// than a match list — the Lifetime scope has [summary]/[legends]/[maps] from
+/// SQL `GROUP BY` queries and never hydrates a [RankedMatch] list at all.
+List<RankedInsight> generateInsightsFromAggregates(
+  RankedSummary summary,
+  List<LegendBreakdown> legends,
+  List<MapBreakdown> maps,
+) {
+  if (summary.games == 0) return [];
 
   final insights = <RankedInsight>[];
-  final summary = summarize(matches);
 
   // Net RP headline.
   insights.add(RankedInsight(
@@ -595,19 +666,20 @@ List<RankedInsight> generateInsights(List<RankedMatch> matches) {
   ));
 
   // Best / worst legend (min games guard).
-  final legends =
-      legendBreakdowns(matches).where((l) => l.games >= kMinGamesForInsight).toList();
-  if (legends.isNotEmpty) {
-    final best = legends.reduce((a, b) => a.avgRpPerGame >= b.avgRpPerGame ? a : b);
+  final qualifyingLegends =
+      legends.where((l) => l.games >= kMinGamesForInsight).toList();
+  if (qualifyingLegends.isNotEmpty) {
+    final best = qualifyingLegends
+        .reduce((a, b) => a.avgRpPerGame >= b.avgRpPerGame ? a : b);
     insights.add(RankedInsight(
       label: 'Best legend',
       detail:
           '${best.legend} · ${_signed(best.avgRpPerGame)} RP/game over ${best.games} games',
       tone: best.avgRpPerGame >= 0 ? InsightTone.positive : InsightTone.neutral,
     ));
-    if (legends.length > 1) {
-      final worst =
-          legends.reduce((a, b) => a.avgRpPerGame <= b.avgRpPerGame ? a : b);
+    if (qualifyingLegends.length > 1) {
+      final worst = qualifyingLegends
+          .reduce((a, b) => a.avgRpPerGame <= b.avgRpPerGame ? a : b);
       if (worst.legend != best.legend) {
         insights.add(RankedInsight(
           label: 'Weakest legend',
@@ -620,10 +692,11 @@ List<RankedInsight> generateInsights(List<RankedMatch> matches) {
   }
 
   // Strongest map.
-  final maps =
-      mapBreakdowns(matches).where((m) => m.games >= kMinGamesForInsight).toList();
-  if (maps.isNotEmpty) {
-    final best = maps.reduce((a, b) => a.avgRpPerGame >= b.avgRpPerGame ? a : b);
+  final qualifyingMaps =
+      maps.where((m) => m.games >= kMinGamesForInsight).toList();
+  if (qualifyingMaps.isNotEmpty) {
+    final best = qualifyingMaps
+        .reduce((a, b) => a.avgRpPerGame >= b.avgRpPerGame ? a : b);
     insights.add(RankedInsight(
       label: 'Strongest map',
       detail:
@@ -690,5 +763,62 @@ List<HourBucket> _bucketByHour(Iterable<(DateTime, int)> entries) {
   return [
     for (final h in hours)
       HourBucket(hourLocal: h, games: games[h]!, netRp: rp[h]!),
+  ];
+}
+
+// ── Day-of-week performance ──────────────────────────────────────────────────
+
+class WeekdayBucket {
+  final int weekday; // 1..7, device-local — DateTime.monday..DateTime.sunday
+  final int games;
+  final int netRp;
+
+  const WeekdayBucket({
+    required this.weekday,
+    required this.games,
+    required this.netRp,
+  });
+
+  double get avgRpPerGame => games == 0 ? 0 : netRp / games;
+}
+
+/// Buckets ranked matches by local day-of-week (from each match's start time).
+/// Only days with at least one game are returned, ordered Monday→Sunday.
+/// Assumes [matches] is already ranked-only filtered.
+List<WeekdayBucket> dayOfWeekBuckets(List<RankedMatch> matches) =>
+    _bucketByWeekday(matches.map((m) => (m.startTime, m.effectiveRpChange)));
+
+/// Buckets ranked rows given only their raw UTC start-millis and RP change —
+/// the counterpart to [dayOfWeekBuckets] for the SQL projection, so the store
+/// can build the Lifetime day-of-week chart without hydrating a full
+/// [RankedMatch] per row. Callers must pass already-ranked rows; RP-reset
+/// outliers are neutralized here to match [RankedMatch.effectiveRpChange].
+List<WeekdayBucket> dayOfWeekBucketsFromRankedRows(
+  Iterable<(int startMsUtc, int rpChange)> rows,
+) =>
+    _bucketByWeekday(rows.map((r) {
+      final (startMs, rp) = r;
+      final effectiveRp = rp.abs() >= kRankedOutlierThreshold ? 0 : rp;
+      return (
+        DateTime.fromMillisecondsSinceEpoch(startMs, isUtc: true),
+        effectiveRp,
+      );
+    }));
+
+/// Shared core: tallies (UTC start time, effective RP) pairs into per-local
+/// weekday buckets. Only days with at least one game are returned, ordered
+/// Monday→Sunday.
+List<WeekdayBucket> _bucketByWeekday(Iterable<(DateTime, int)> entries) {
+  final games = <int, int>{};
+  final rp = <int, int>{};
+  for (final (start, effectiveRp) in entries) {
+    final weekday = start.toLocal().weekday;
+    games[weekday] = (games[weekday] ?? 0) + 1;
+    rp[weekday] = (rp[weekday] ?? 0) + effectiveRp;
+  }
+  final weekdays = games.keys.toList()..sort();
+  return [
+    for (final d in weekdays)
+      WeekdayBucket(weekday: d, games: games[d]!, netRp: rp[d]!),
   ];
 }

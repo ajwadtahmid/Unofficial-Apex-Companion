@@ -267,6 +267,8 @@ typedef RankedLifetimeAggregates = ({
   List<LegendBreakdown> legends,
   List<MapBreakdown> maps,
   List<HourBucket> timeOfDay,
+  List<WeekdayBucket> dayOfWeek,
+  ({RankedSummary full, RankedSummary partial}) squadBreakdown,
 });
 
 final rankedLifetimeAggregatesProvider = FutureProvider.autoDispose
@@ -278,5 +280,7 @@ final rankedLifetimeAggregatesProvider = FutureProvider.autoDispose
         legends: await store.legendBreakdownsFor(uid),
         maps: await store.mapBreakdownsFor(uid),
         timeOfDay: await store.timeOfDayBucketsFor(uid),
+        dayOfWeek: await store.dayOfWeekBucketsFor(uid),
+        squadBreakdown: await store.squadBreakdownFor(uid),
       );
     });

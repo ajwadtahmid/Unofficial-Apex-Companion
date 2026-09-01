@@ -9,6 +9,10 @@ import '../../utils/error_messages.dart';
 import '../../utils/ranked/ranked_aggregates.dart';
 import '../../utils/ranked/ranked_period.dart';
 import '../../utils/theme.dart';
+import 'ranked_legend_map_matrix_screen.dart';
+import 'ranked_pick_rate_screen.dart';
+import 'ranked_squad_sessions_screen.dart';
+import 'ranked_time_breakdown_screen.dart';
 import 'widgets/ranked_breakdown_tables.dart';
 import 'widgets/ranked_highlight_cards.dart';
 import 'widgets/ranked_info_sheet.dart';
@@ -16,10 +20,8 @@ import 'widgets/ranked_match_list.dart';
 import 'widgets/ranked_period_selector.dart'
     show RankedSplitDropdown, RankedWeekStrip;
 import 'widgets/ranked_rp_chart.dart';
-import 'widgets/ranked_sessions_card.dart';
 import 'widgets/ranked_stats_card.dart';
 import 'widgets/ranked_summary_header.dart';
-import 'widgets/ranked_time_of_day_chart.dart';
 
 /// The ranked-breakdown content, hosted as the Ranked bottom-nav tab. It
 /// owns no Scaffold/AppBar and reads everything from providers, so it can be
@@ -366,9 +368,40 @@ class _RankedBreakdownViewState extends ConsumerState<RankedBreakdownView> {
             children: [
               RankedStatsCard(summary: agg.summary),
               const SizedBox(height: AppTheme.md),
-              RankedOverviewHighlights(legends: agg.legends, maps: agg.maps),
+              RankedOverviewHighlights(
+                legends: agg.legends,
+                maps: agg.maps,
+                legendMatchesFor: (legend) =>
+                    store.matchesForLegend(widget.uid, legend),
+                mapMatchesFor: (mapKey) =>
+                    store.matchesForMap(widget.uid, mapKey),
+                onRefresh: _refresh,
+              ),
               const SizedBox(height: AppTheme.md),
-              RankedTimeOfDayChart(buckets: agg.timeOfDay),
+              RankedPickRateEntry(summary: agg.summary, legends: agg.legends),
+              const SizedBox(height: AppTheme.md),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: RankedSquadSessionsEntry(
+                        fullSquad: agg.squadBreakdown.full,
+                        partialSquad: agg.squadBreakdown.partial,
+                        matches: const [],
+                        onRefresh: _refresh,
+                      ),
+                    ),
+                    const SizedBox(width: AppTheme.sm),
+                    Expanded(
+                      child: RankedTimeBreakdownEntry(
+                        hourBuckets: agg.timeOfDay,
+                        weekdayBuckets: agg.dayOfWeek,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: AppTheme.lg),
             ],
           ),
@@ -405,6 +438,13 @@ class _OverviewTab extends StatelessWidget {
     required this.onRefresh,
   });
 
+  // Matches are already in memory for a split — the drill-down just filters
+  // them, same as the Legends/Maps tabs' own matchesFor closures.
+  Future<List<RankedMatch>> _legendMatchesFor(String legend) async =>
+      matches.where((m) => m.legend == legend).toList();
+  Future<List<RankedMatch>> _mapMatchesFor(String mapKey) async =>
+      matches.where((m) => m.mapKey == mapKey).toList();
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -419,11 +459,53 @@ class _OverviewTab extends StatelessWidget {
           const SizedBox(height: AppTheme.md),
           RankedRpChart(matches: matches),
           const SizedBox(height: AppTheme.md),
-          RankedOverviewHighlights(legends: legends, maps: maps),
+          RankedOverviewHighlights(
+            legends: legends,
+            maps: maps,
+            legendMatchesFor: _legendMatchesFor,
+            mapMatchesFor: _mapMatchesFor,
+            onRefresh: onRefresh,
+          ),
           const SizedBox(height: AppTheme.md),
-          RankedSessionsCard(matches: matches, onRefresh: onRefresh),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: RankedLegendMapMatrixEntry(matches: matches)),
+                const SizedBox(width: AppTheme.sm),
+                Expanded(
+                  child: RankedPickRateEntry(summary: summary, legends: legends),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: AppTheme.md),
-          RankedTimeOfDayChart(buckets: timeOfDayBuckets(matches)),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: RankedSquadSessionsEntry(
+                    fullSquad: summarize(
+                      matches.where((m) => m.isPartyFull).toList(),
+                    ),
+                    partialSquad: summarize(
+                      matches.where((m) => !m.isPartyFull).toList(),
+                    ),
+                    matches: matches,
+                    onRefresh: onRefresh,
+                  ),
+                ),
+                const SizedBox(width: AppTheme.sm),
+                Expanded(
+                  child: RankedTimeBreakdownEntry(
+                    hourBuckets: timeOfDayBuckets(matches),
+                    weekdayBuckets: dayOfWeekBuckets(matches),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: AppTheme.lg),
         ],
       ),

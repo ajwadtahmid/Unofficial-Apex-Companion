@@ -510,6 +510,53 @@ class RankedHistoryStore {
     );
   }
 
+  /// Ranked summary split by full vs. partial squad for [uid] across
+  /// [seasonId] (null = lifetime), via the same `GROUP BY` shape as
+  /// [legendBreakdownsFor]. `currentRp`/`latestRankImg` are left at
+  /// [RankedSummary.empty]'s defaults — squad composition has no single
+  /// "current rank" the way a legend or map split doesn't either, and neither
+  /// field is used by this split's UI.
+  Future<({RankedSummary full, RankedSummary partial})> squadBreakdownFor(
+    String uid, {
+    String? seasonId,
+  }) async {
+    final db = await _open();
+    final (where, args) = _rankedScope(uid, seasonId);
+    final rows = await db.rawQuery(
+      'SELECT is_party_full, $_aggCols FROM $table WHERE $where '
+      'GROUP BY is_party_full',
+      args,
+    );
+
+    RankedSummary summaryFromRow(int isPartyFull) {
+      Map<String, Object?>? agg;
+      for (final r in rows) {
+        if ((r['is_party_full'] as num?)?.toInt() == isPartyFull) {
+          agg = r;
+          break;
+        }
+      }
+      if (agg == null) return RankedSummary.empty;
+      final games = (agg['games'] as num).toInt();
+      if (games == 0) return RankedSummary.empty;
+      return RankedSummary(
+        games: games,
+        netRp: (agg['net_rp'] as num).toInt(),
+        currentRp: 0,
+        latestRankImg: '',
+        totalKills: (agg['kills'] as num).toInt(),
+        totalDamage: (agg['damage'] as num).toInt(),
+        killsGames: (agg['kills_games'] as num).toInt(),
+        damageGames: (agg['damage_games'] as num).toInt(),
+        totalLengthSecs: (agg['length_secs'] as num).toInt(),
+        wins: (agg['wins'] as num).toInt(),
+        losses: (agg['losses'] as num).toInt(),
+      );
+    }
+
+    return (full: summaryFromRow(1), partial: summaryFromRow(0));
+  }
+
   /// Per-legend breakdown for [uid] across [seasonId] (null = lifetime), sorted
   /// by total RP descending — matching [legendBreakdowns].
   Future<List<LegendBreakdown>> legendBreakdownsFor(
@@ -591,6 +638,30 @@ class RankedHistoryStore {
     );
     // Bucket straight from the two projected columns — no RankedMatch per row.
     return timeOfDayBucketsFromRankedRows([
+      for (final r in rows)
+        (
+          (r['start_ms'] as num?)?.toInt() ?? 0,
+          (r['rp_change'] as num?)?.toInt() ?? 0,
+        ),
+    ]);
+  }
+
+  /// Day-of-week performance for [uid] across [seasonId] (null = lifetime).
+  /// Same shape and same reasoning as [timeOfDayBucketsFor] — "which day do I
+  /// play best" isn't season-relative either, and the same narrow start/RP
+  /// projection feeds [dayOfWeekBucketsFromRankedRows] without hydrating a
+  /// [RankedMatch] per row.
+  Future<List<WeekdayBucket>> dayOfWeekBucketsFor(
+    String uid, {
+    String? seasonId,
+  }) async {
+    final db = await _open();
+    final (where, args) = _rankedScope(uid, seasonId);
+    final rows = await db.rawQuery(
+      'SELECT start_ms, rp_change FROM $table WHERE $where',
+      args,
+    );
+    return dayOfWeekBucketsFromRankedRows([
       for (final r in rows)
         (
           (r['start_ms'] as num?)?.toInt() ?? 0,

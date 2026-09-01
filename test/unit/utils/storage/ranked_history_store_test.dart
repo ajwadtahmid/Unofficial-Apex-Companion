@@ -26,6 +26,7 @@ void main() {
     String legend = 'Axle',
     int rp = 10,
     String mapKey = 'olympus_rotation',
+    bool isPartyFull = false,
   }) => RankedMatch.fromJson({
     'uid': uid,
     'name': 'Tester',
@@ -41,6 +42,7 @@ void main() {
     'BRScoreChange': rp,
     'BRScore': 1000,
     'map': mapKey,
+    'isPartyFull': isPartyFull,
   });
 
   /// [m] as a row carrying only [columns], for inserting into the deliberately
@@ -799,6 +801,60 @@ void main() {
         );
       },
     );
+
+    test('dayOfWeekBucketsFor (lifetime and per-split) matches the Dart path',
+        () async {
+      final store = await seeded();
+      addTearDown(store.close);
+
+      final allRanked = rankedOnly(await store.getAll('1'));
+      final sqlLifetime = await store.dayOfWeekBucketsFor('1');
+      final dartLifetime = dayOfWeekBuckets(allRanked);
+      expect(
+        sqlLifetime.map((b) => (b.weekday, b.games, b.netRp)).toList(),
+        dartLifetime.map((b) => (b.weekday, b.games, b.netRp)).toList(),
+      );
+
+      final s1Ranked = rankedOnly(
+        await store.getBySeason('1', 'br_ranked_s1_s1'),
+      );
+      final sqlSplit = await store.dayOfWeekBucketsFor(
+        '1',
+        seasonId: 'br_ranked_s1_s1',
+      );
+      final dartSplit = dayOfWeekBuckets(s1Ranked);
+      expect(
+        sqlSplit.map((b) => (b.weekday, b.games, b.netRp)).toList(),
+        dartSplit.map((b) => (b.weekday, b.games, b.netRp)).toList(),
+      );
+    });
+
+    test('squadBreakdownFor splits ranked games by full vs partial squad',
+        () async {
+      final store = RankedHistoryStore(overridePath: inMemoryDatabasePath);
+      addTearDown(store.close);
+      await store.upsertAll('1', [
+        match('1', 100, rp: 40, isPartyFull: true),
+        match('1', 200, rp: -20, isPartyFull: true),
+        match('1', 300, rp: 60, isPartyFull: false),
+        match('1', 250, rp: 0, isPartyFull: false), // pub, excluded
+      ]);
+
+      final split = await store.squadBreakdownFor('1');
+      expect(split.full.games, 2);
+      expect(split.full.netRp, 20);
+      expect(split.partial.games, 1, reason: 'the 0-RP pub is not ranked');
+      expect(split.partial.netRp, 60);
+    });
+
+    test('squadBreakdownFor returns empty summaries for an untouched scope',
+        () async {
+      final store = RankedHistoryStore(overridePath: inMemoryDatabasePath);
+      addTearDown(store.close);
+      final split = await store.squadBreakdownFor('nobody');
+      expect(split.full.games, 0);
+      expect(split.partial.games, 0);
+    });
   });
 
   group('lazy backfills are served by partial indexes, not a full scan', () {

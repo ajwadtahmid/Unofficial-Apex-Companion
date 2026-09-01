@@ -140,6 +140,53 @@ void main() {
     expect(m.last.losses, 0);
   });
 
+  test('legendMapBreakdowns groups by legend and map', () {
+    final cells = legendMapBreakdowns(ranked);
+    expect(cells.length, 2); // Axle+Olympus, Bangalore+Storm Point
+
+    final axleOlympus =
+        cells.firstWhere((c) => c.legend == 'Axle' && c.mapName == 'Olympus');
+    expect(axleOlympus.games, 3);
+    expect(axleOlympus.totalRp, 30); // +40 - 20 + 10
+    expect(axleOlympus.wins, 2);
+    expect(axleOlympus.losses, 1);
+
+    final bangaloreStormPoint = cells
+        .firstWhere((c) => c.legend == 'Bangalore' && c.mapName == 'Storm Point');
+    expect(bangaloreStormPoint.games, 1);
+    expect(bangaloreStormPoint.totalRp, 60);
+  });
+
+  test('legendMapBreakdowns drops a legend or map outside the constant lists', () {
+    final withUnknowns = rankedOnly([
+      ...ranked,
+      match(
+        legend: 'Not A Real Legend',
+        mapKey: 'olympus_rotation',
+        rpChange: 5,
+        cumulativeRp: 1095,
+        kills: 1,
+        damage: 100,
+        startOffset: 90000,
+      ),
+      match(
+        legend: 'Axle',
+        mapKey: 'not_a_real_map',
+        rpChange: 5,
+        cumulativeRp: 1100,
+        kills: 1,
+        damage: 100,
+        startOffset: 93600,
+      ),
+    ]);
+    final cells = legendMapBreakdowns(withUnknowns);
+    expect(
+      cells.length,
+      2,
+      reason: 'the unrecognised legend and map each drop their pair entirely',
+    );
+  });
+
   test('sessionize splits on >2h gaps, newest session first', () {
     final sessions = sessionize(ranked);
     expect(sessions.length, 2);
@@ -169,6 +216,25 @@ void main() {
     expect(best.detail, contains('Axle')); // only legend with >=3 games
   });
 
+  test('generateInsightsFromAggregates matches generateInsights for the same window', () {
+    final fromMatches = generateInsights(ranked);
+    final fromAggregates = generateInsightsFromAggregates(
+      summarize(ranked),
+      legendBreakdowns(ranked),
+      mapBreakdowns(ranked),
+    );
+    expect(
+      fromAggregates.map((i) => i.detail),
+      fromMatches.map((i) => i.detail),
+      reason: 'the Lifetime path (aggregates) must read the same as the split '
+          'path (matches) for identical underlying data',
+    );
+  });
+
+  test('generateInsightsFromAggregates returns nothing for an empty window', () {
+    expect(generateInsightsFromAggregates(RankedSummary.empty, [], []), isEmpty);
+  });
+
   test('timeOfDayBuckets covers all ranked games and conserves net RP', () {
     final buckets = timeOfDayBuckets(ranked);
     final totalGames = buckets.fold<int>(0, (a, b) => a + b.games);
@@ -177,6 +243,24 @@ void main() {
     expect(totalRp, 90);
     // Hours are device-local; assert each is a valid hour.
     expect(buckets.every((b) => b.hourLocal >= 0 && b.hourLocal <= 23), true);
+  });
+
+  test('dayOfWeekBuckets covers all ranked games and conserves net RP', () {
+    final buckets = dayOfWeekBuckets(ranked);
+    final totalGames = buckets.fold<int>(0, (a, b) => a + b.games);
+    final totalRp = buckets.fold<int>(0, (a, b) => a + b.netRp);
+    expect(totalGames, 4); // UNKNOWN excluded
+    expect(totalRp, 90);
+    // Weekdays are device-local; assert each is a valid DateTime.weekday value.
+    expect(buckets.every((b) => b.weekday >= 1 && b.weekday <= 7), true);
+  });
+
+  test('dayOfWeekBucketsFromRankedRows neutralizes outliers like the match path', () {
+    final rows = [(1782090000000, 40), (1782090000000, -2000)];
+    final buckets = dayOfWeekBucketsFromRankedRows(rows);
+    final totalRp = buckets.fold<int>(0, (a, b) => a + b.netRp);
+    expect(totalRp, 40, reason: 'the 2000 RP swing is a reset artifact, zeroed');
+    expect(buckets.fold<int>(0, (a, b) => a + b.games), 2);
   });
 
   group('RankProgress Apex Predator cutoff', () {
