@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../constants/legend_constants.dart';
 import '../../constants/ranked_map_constants.dart';
 import '../../models/ranked_match.dart';
 import '../../models/season_meta.dart';
@@ -614,6 +615,48 @@ class RankedHistoryStore {
           totalLengthSecs: (r['length_secs'] as num).toInt(),
           wins: (r['wins'] as num).toInt(),
           losses: (r['losses'] as num).toInt(),
+        ),
+    ];
+  }
+
+  /// Per (legend, map) breakdown for [uid] across [seasonId] (null =
+  /// lifetime), via SQL — the counterpart to [legendMapBreakdowns] for a split
+  /// that isn't necessarily the one currently loaded in memory (e.g. the
+  /// split-comparison tab). Grouped by the raw columns first since SQL can't
+  /// canonicalize map-key variants; rows are merged in Dart after applying the
+  /// same constants-only inclusion rule [legendMapBreakdowns] uses.
+  Future<List<LegendMapCell>> legendMapBreakdownsFor(
+    String uid, {
+    String? seasonId,
+  }) async {
+    final db = await _open();
+    final (where, args) = _rankedScope(uid, seasonId);
+    final rows = await db.rawQuery(
+      'SELECT legend, map_key, $_aggCols FROM $table WHERE $where '
+      'GROUP BY legend, map_key',
+      args,
+    );
+
+    final byPair = <(String, String), List<Map<String, Object?>>>{};
+    for (final r in rows) {
+      final legend = kLegendsByName[(r['legend'] as String? ?? '').toLowerCase()]
+          ?.name;
+      final mapName = rankedMapInfo(r['map_key'] as String? ?? '')?.name;
+      if (legend == null || mapName == null) continue;
+      byPair.putIfAbsent((legend, mapName), () => []).add(r);
+    }
+
+    return [
+      for (final entry in byPair.entries)
+        LegendMapCell(
+          legend: entry.key.$1,
+          mapName: entry.key.$2,
+          games: entry.value.fold(0, (s, r) => s + (r['games'] as num).toInt()),
+          totalRp:
+              entry.value.fold(0, (s, r) => s + (r['net_rp'] as num).toInt()),
+          wins: entry.value.fold(0, (s, r) => s + (r['wins'] as num).toInt()),
+          losses:
+              entry.value.fold(0, (s, r) => s + (r['losses'] as num).toInt()),
         ),
     ];
   }

@@ -9,6 +9,7 @@ import '../../utils/error_messages.dart';
 import '../../utils/ranked/ranked_aggregates.dart';
 import '../../utils/ranked/ranked_period.dart';
 import '../../utils/theme.dart';
+import 'ranked_compare_tab.dart';
 import 'ranked_legend_map_matrix_screen.dart';
 import 'ranked_pick_rate_screen.dart';
 import 'ranked_squad_sessions_screen.dart';
@@ -322,7 +323,7 @@ class _RankedBreakdownViewState extends ConsumerState<RankedBreakdownView> {
 
     return _tabShell(
       'split',
-      const ['Overview', 'Legends', 'Maps', 'History'],
+      const ['Overview', 'Legends', 'Maps', 'History', 'Compare'],
       [
         _OverviewTab(
           uid: widget.uid,
@@ -344,6 +345,7 @@ class _RankedBreakdownViewState extends ConsumerState<RankedBreakdownView> {
         ),
         // History keeps everything (pubs included), not just the ranked matches.
         RankedMatchList(matches: view.history, onRefresh: _refresh),
+        RankedCompareTab(uid: widget.uid, splits: view.splits),
       ],
     );
   }

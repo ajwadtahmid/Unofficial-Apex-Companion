@@ -10,6 +10,19 @@ void main() {
     test('formats large numbers', () => expect(formatNumber(1234567), '1,234,567'));
   });
 
+  group('formatSigned', () {
+    test('adds a + for non-negative values', () {
+      expect(formatSigned(4.2), '+4.2');
+      expect(formatSigned(0), '+0.0');
+    });
+    test('leaves the sign alone for negatives', () => expect(formatSigned(-4.2), '-4.2'));
+  });
+
+  group('formatSignedInt', () {
+    test('adds a + and thousands separators', () => expect(formatSignedInt(1500), '+1,500'));
+    test('leaves negatives alone', () => expect(formatSignedInt(-1500), '-1,500'));
+  });
+
   group('capitalize', () {
     test('capitalizes first letter', () => expect(capitalize('hello'), 'Hello'));
     test('leaves already-capitalized unchanged', () => expect(capitalize('Hello'), 'Hello'));

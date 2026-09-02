@@ -284,3 +284,47 @@ final rankedLifetimeAggregatesProvider = FutureProvider.autoDispose
         squadBreakdown: await store.squadBreakdownFor(uid),
       );
     });
+
+/// Every aggregate the split-comparison tab needs for one split, bundled the
+/// same way [RankedLifetimeAggregates] bundles Lifetime's — all SQL, no match
+/// hydration, so comparing two arbitrary splits costs the same regardless of
+/// which two are picked (neither has to be the split currently open).
+typedef RankedSplitDetail = ({
+  RankedSummary summary,
+  List<LegendBreakdown> legends,
+  List<MapBreakdown> maps,
+  List<LegendMapCell> legendMap,
+  ({RankedSummary full, RankedSummary partial}) squadBreakdown,
+  List<HourBucket> timeOfDay,
+  List<WeekdayBucket> dayOfWeek,
+});
+
+final rankedSplitDetailProvider = FutureProvider.autoDispose
+    .family<RankedSplitDetail, ({String uid, String splitId})>((
+      ref,
+      arg,
+    ) async {
+      await ref.watch(rankedSyncProvider(arg.uid).future);
+      final store = ref.watch(rankedHistoryStoreProvider);
+      return (
+        summary: await store.summaryFor(arg.uid, seasonId: arg.splitId),
+        legends: await store.legendBreakdownsFor(arg.uid, seasonId: arg.splitId),
+        maps: await store.mapBreakdownsFor(arg.uid, seasonId: arg.splitId),
+        legendMap: await store.legendMapBreakdownsFor(
+          arg.uid,
+          seasonId: arg.splitId,
+        ),
+        squadBreakdown: await store.squadBreakdownFor(
+          arg.uid,
+          seasonId: arg.splitId,
+        ),
+        timeOfDay: await store.timeOfDayBucketsFor(
+          arg.uid,
+          seasonId: arg.splitId,
+        ),
+        dayOfWeek: await store.dayOfWeekBucketsFor(
+          arg.uid,
+          seasonId: arg.splitId,
+        ),
+      );
+    });

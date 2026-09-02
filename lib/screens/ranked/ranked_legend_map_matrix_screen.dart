@@ -56,14 +56,23 @@ class RankedLegendMapMatrixScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cells = legendMapBreakdowns(matches);
-
     return Scaffold(
       appBar: AppBar(title: const Text('Legend × Map')),
-      body: cells.isEmpty
-          ? const _EmptyState()
-          : SafeArea(child: _Matrix(cells: cells)),
+      body: SafeArea(child: RankedLegendMapMatrixView(cells: legendMapBreakdowns(matches))),
     );
+  }
+}
+
+/// The grid itself, reused by [RankedLegendMapMatrixScreen] (from in-memory
+/// matches) and the split-comparison tab (from a precomputed SQL breakdown for
+/// a split that may not be the one currently loaded).
+class RankedLegendMapMatrixView extends StatelessWidget {
+  final List<LegendMapCell> cells;
+  const RankedLegendMapMatrixView({super.key, required this.cells});
+
+  @override
+  Widget build(BuildContext context) {
+    return cells.isEmpty ? const _EmptyState() : _Matrix(cells: cells);
   }
 }
 

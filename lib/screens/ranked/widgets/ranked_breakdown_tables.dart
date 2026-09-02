@@ -9,9 +9,9 @@ import '../../../widgets/legend_asset_image.dart';
 import '../../../widgets/stat_display.dart';
 import '../../../widgets/surface_card.dart';
 import '../../../widgets/win_loss_stat.dart';
-import '../ranked_entity_history_screen.dart';
 import 'map_rp_badge.dart';
-import 'match_history_items.dart' show MatchGrouping;
+import 'ranked_legend_detail_sheet.dart';
+import 'ranked_map_detail_sheet.dart';
 
 enum _Sort { totalRp, games, avgRp }
 
@@ -114,32 +114,15 @@ class _RankedLegendBreakdownState extends State<RankedLegendBreakdown> {
               child: _LegendCard(
                 rank: i + 1,
                 row: rows[i],
-                onTap: () => _openHistory(context, rows[i]),
+                onTap: () => showLegendDetailSheet(
+                  context,
+                  rows[i],
+                  widget.matchesFor,
+                  widget.onRefresh,
+                ),
               ),
             ),
         ],
-      ),
-    );
-  }
-
-  Future<void> _openHistory(BuildContext context, LegendBreakdown row) async {
-    final games = await widget.matchesFor(row.legend)
-      ..sort((a, b) => b.endTime.compareTo(a.endTime));
-    if (!context.mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => RankedEntityHistoryScreen(
-          title: row.legend,
-          subtitle:
-              '${row.games} ranked games · ${_signedAvg(row.avgRpPerGame)} RP/game',
-          matches: games,
-          onRefresh: widget.onRefresh,
-          groupLabel: 'map',
-          grouping: MatchGrouping(
-            keyOf: (m) => m.mapKey,
-            nameOf: (m) => rankedMapName(m.mapKey),
-          ),
-        ),
       ),
     );
   }
@@ -378,32 +361,15 @@ class _RankedMapBreakdownState extends State<RankedMapBreakdown> {
               child: _MapCard(
                 rank: i + 1,
                 row: rows[i],
-                onTap: () => _openHistory(context, rows[i]),
+                onTap: () => showMapDetailSheet(
+                  context,
+                  rows[i],
+                  widget.matchesFor,
+                  widget.onRefresh,
+                ),
               ),
             ),
         ],
-      ),
-    );
-  }
-
-  Future<void> _openHistory(BuildContext context, MapBreakdown row) async {
-    final games = await widget.matchesFor(row.mapKey)
-      ..sort((a, b) => b.endTime.compareTo(a.endTime));
-    if (!context.mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => RankedEntityHistoryScreen(
-          title: row.displayName,
-          subtitle:
-              '${row.games} ranked games · ${_signedAvg(row.avgRpPerGame)} RP/game',
-          matches: games,
-          onRefresh: widget.onRefresh,
-          groupLabel: 'legend',
-          grouping: MatchGrouping(
-            keyOf: (m) => m.legend,
-            nameOf: (m) => m.legend,
-          ),
-        ),
       ),
     );
   }

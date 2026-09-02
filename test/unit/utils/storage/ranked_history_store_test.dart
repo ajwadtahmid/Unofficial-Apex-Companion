@@ -742,6 +742,19 @@ void main() {
       }
       // Most-played map sorts first (olympus 5 > storm point 1).
       expect(sqlMaps.first.mapKey, 'olympus_rotation');
+
+      final sqlLegendMap = await store.legendMapBreakdownsFor('1');
+      final dartLegendMap = {
+        for (final c in legendMapBreakdowns(ranked)) (c.legend, c.mapName): c,
+      };
+      expect(sqlLegendMap.length, dartLegendMap.length);
+      for (final s in sqlLegendMap) {
+        final d = dartLegendMap[(s.legend, s.mapName)]!;
+        expect(s.games, d.games);
+        expect(s.totalRp, d.totalRp);
+        expect(s.wins, d.wins);
+        expect(s.losses, d.losses);
+      }
     });
 
     test('per-split summary matches the Dart path for that split', () async {

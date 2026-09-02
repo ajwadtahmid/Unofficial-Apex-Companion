@@ -1,23 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../constants/legend_constants.dart';
 import '../../../constants/ranked_map_constants.dart';
-import '../../../models/player_stats.dart';
 import '../../../models/ranked_match.dart';
-import '../../../providers/settings_provider.dart';
-import '../../../utils/formatting/format.dart'
-    show formatNumber, formatDuration;
+import '../../../utils/formatting/format.dart' show formatNumber, formatSigned;
 import '../../../utils/ranked/ranked_aggregates.dart';
-import '../../../utils/storage/legend_stats_storage.dart';
 import '../../../utils/theme.dart';
 import '../../../widgets/legend_asset_image.dart';
-import '../../../widgets/legend_detail_page.dart';
-import '../../../widgets/stat_display.dart';
 import '../../../widgets/surface_card.dart';
-import '../../../widgets/win_loss_stat.dart';
-import '../ranked_entity_history_screen.dart';
 import 'map_rp_badge.dart';
-import 'match_history_items.dart' show MatchGrouping;
+import 'ranked_legend_detail_sheet.dart';
+import 'ranked_map_detail_sheet.dart';
 
 /// Overview highlight reel: best & worst legends (one per line, tappable for a
 /// detail sheet) and the worst & best maps (image banners, also tappable). Each
@@ -41,9 +32,6 @@ class RankedOverviewHighlights extends StatelessWidget {
     required this.mapMatchesFor,
     required this.onRefresh,
   });
-
-  static String _signed(double v) =>
-      '${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}';
 
   @override
   Widget build(BuildContext context) {
@@ -163,22 +151,6 @@ class _CompactLegend extends StatelessWidget {
     required this.onRefresh,
   });
 
-  void _openDetail(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppTheme.surface,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.radiusLg)),
-      ),
-      builder: (_) => _LegendDetailSheet(
-        breakdown: breakdown,
-        matchesFor: matchesFor,
-        onRefresh: onRefresh,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final positive = breakdown.avgRpPerGame >= 0;
@@ -186,7 +158,7 @@ class _CompactLegend extends StatelessWidget {
 
     return SurfaceCard(
       padding: const EdgeInsets.all(AppTheme.sm + 2),
-      onTap: () => _openDetail(context),
+      onTap: () => showLegendDetailSheet(context, breakdown, matchesFor, onRefresh),
       child: Row(
         children: [
           ClipRRect(
@@ -217,7 +189,7 @@ class _CompactLegend extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  '${RankedOverviewHighlights._signed(breakdown.avgRpPerGame)} RP/game',
+                  '${formatSigned(breakdown.avgRpPerGame)} RP/game',
                   style: TextStyle(
                     color: rpColor,
                     fontSize: 13,
@@ -239,203 +211,6 @@ class _CompactLegend extends StatelessWidget {
   }
 }
 
-/// Detail sheet for a Best/Worst Legend highlight: the full stat set the
-/// Legends tab shows per row, plus a "View all history" button that resolves
-/// this legend's matches and pushes the same [RankedEntityHistoryScreen]
-/// drill-down the Legends tab uses. "All Trackers" resolves the persisted
-/// career [LegendStat] for this legend — a pure read of what
-/// [mergeLegendStats] already wrote during the normal My Stats flow, so
-/// opening this never re-triggers that merge — and pushes the same
-/// [LegendDetailPage] My Stats uses; hidden when no matching stat exists.
-class _LegendDetailSheet extends ConsumerWidget {
-  final LegendBreakdown breakdown;
-  final Future<List<RankedMatch>> Function(String legend) matchesFor;
-  final Future<void> Function() onRefresh;
-
-  const _LegendDetailSheet({
-    required this.breakdown,
-    required this.matchesFor,
-    required this.onRefresh,
-  });
-
-  Future<void> _viewHistory(BuildContext context) async {
-    final games = await matchesFor(breakdown.legend)
-      ..sort((a, b) => b.endTime.compareTo(a.endTime));
-    if (!context.mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => RankedEntityHistoryScreen(
-          title: breakdown.legend,
-          subtitle: '${breakdown.games} ranked games · '
-              '${RankedOverviewHighlights._signed(breakdown.avgRpPerGame)} RP/game',
-          matches: games,
-          onRefresh: onRefresh,
-          groupLabel: 'map',
-          grouping: MatchGrouping(
-            keyOf: (m) => m.mapKey,
-            nameOf: (m) => rankedMapName(m.mapKey),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _viewTrackers(BuildContext context, LegendStat stat) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => LegendDetailPage(legend: stat)),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final info = kLegendsByName[breakdown.legend.toLowerCase()];
-    final uid = ref.watch(playerSettingsProvider.select((s) => s.uid));
-    final prefs = ref.watch(sharedPreferencesProvider);
-    final target = breakdown.legend.toLowerCase();
-    LegendStat? legendStat;
-    for (final s in loadLegendStats(prefs, uid: uid)) {
-      if (s.name.toLowerCase() == target) {
-        legendStat = s;
-        break;
-      }
-    }
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                  child: SizedBox(
-                    width: 84,
-                    height: 84,
-                    child: LegendAssetImage(
-                      imageKey: legendImageKey(breakdown.legend),
-                      displayName: breakdown.legend,
-                      fallbackFontSize: 30,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppTheme.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        breakdown.legend,
-                        style: const TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (info != null) ...[
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: info.role.color.withAlpha(35),
-                            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                          ),
-                          child: Text(
-                            info.role.displayName,
-                            style: TextStyle(
-                              color: info.role.color,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppTheme.md),
-            Wrap(
-              spacing: AppTheme.sm,
-              runSpacing: AppTheme.sm,
-              children: [
-                StatDisplay(label: 'Games', value: '${breakdown.games}'),
-                WinLossStat(wins: breakdown.wins, losses: breakdown.losses),
-                StatDisplay(
-                  label: 'Avg RP',
-                  value: RankedOverviewHighlights._signed(breakdown.avgRpPerGame),
-                ),
-                StatDisplay(
-                  label: 'Total RP',
-                  value: RankedOverviewHighlights._signed(breakdown.totalRp.toDouble()),
-                ),
-                StatDisplay(
-                  label: 'Avg Kills',
-                  value: breakdown.avgKills.toStringAsFixed(1),
-                ),
-                StatDisplay(
-                  label: 'Total Kills',
-                  value: formatNumber(breakdown.totalKills),
-                ),
-                StatDisplay(
-                  label: 'Avg Dmg',
-                  value: formatNumber(breakdown.avgDamage.round()),
-                ),
-                StatDisplay(
-                  label: 'Total Dmg',
-                  value: formatNumber(breakdown.totalDamage),
-                ),
-                StatDisplay(
-                  label: 'Avg Time',
-                  value: formatDuration(breakdown.avgLengthSecs.round()),
-                ),
-                StatDisplay(
-                  label: 'Total Time',
-                  value: formatDuration(breakdown.totalLengthSecs),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppTheme.md),
-            Row(
-              children: [
-                if (legendStat != null) ...[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _viewTrackers(context, legendStat!),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.accent,
-                        side: const BorderSide(color: AppTheme.accent),
-                      ),
-                      icon: const Icon(Icons.bar_chart, size: 18),
-                      label: const Text('All Trackers'),
-                    ),
-                  ),
-                  const SizedBox(width: AppTheme.sm),
-                ],
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => _viewHistory(context),
-                    style: FilledButton.styleFrom(backgroundColor: AppTheme.accent),
-                    icon: const Icon(Icons.history, size: 18),
-                    label: const Text('View all history'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _MapHighlight extends StatelessWidget {
   final String label;
   final MapBreakdown map;
@@ -449,22 +224,6 @@ class _MapHighlight extends StatelessWidget {
     required this.onRefresh,
   });
 
-  void _openDetail(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppTheme.surface,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.radiusLg)),
-      ),
-      builder: (_) => _MapDetailSheet(
-        map: map,
-        matchesFor: matchesFor,
-        onRefresh: onRefresh,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final positive = map.avgRpPerGame >= 0;
@@ -474,7 +233,7 @@ class _MapHighlight extends StatelessWidget {
     return SurfaceCard(
       padding: EdgeInsets.zero,
       clip: Clip.antiAlias,
-      onTap: () => _openDetail(context),
+      onTap: () => showMapDetailSheet(context, map, matchesFor, onRefresh),
       child: SizedBox(
         height: 118,
         child: Stack(
@@ -542,9 +301,7 @@ class _MapHighlight extends StatelessWidget {
                       children: [
                         _MapStat(
                           label: 'Avg RP',
-                          value: RankedOverviewHighlights._signed(
-                            map.avgRpPerGame,
-                          ),
+                          value: formatSigned(map.avgRpPerGame),
                           color: accent,
                         ),
                         _MapStat(
@@ -560,137 +317,6 @@ class _MapHighlight extends StatelessWidget {
                     ),
                   ),
                 ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Detail sheet for a Best/Worst Map highlight: the full stat set the Maps tab
-/// shows per row, plus a "View all history" button that resolves this map's
-/// matches and pushes the same [RankedEntityHistoryScreen] drill-down the Maps
-/// tab uses.
-class _MapDetailSheet extends StatelessWidget {
-  final MapBreakdown map;
-  final Future<List<RankedMatch>> Function(String mapKey) matchesFor;
-  final Future<void> Function() onRefresh;
-
-  const _MapDetailSheet({
-    required this.map,
-    required this.matchesFor,
-    required this.onRefresh,
-  });
-
-  Future<void> _viewHistory(BuildContext context) async {
-    final games = await matchesFor(map.mapKey)
-      ..sort((a, b) => b.endTime.compareTo(a.endTime));
-    if (!context.mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => RankedEntityHistoryScreen(
-          title: map.displayName,
-          subtitle: '${map.games} ranked games · '
-              '${RankedOverviewHighlights._signed(map.avgRpPerGame)} RP/game',
-          matches: games,
-          onRefresh: onRefresh,
-          groupLabel: 'legend',
-          grouping: MatchGrouping(keyOf: (m) => m.legend, nameOf: (m) => m.legend),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final asset = rankedMapAsset(map.mapKey);
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                  child: SizedBox(
-                    width: 72,
-                    height: 44,
-                    child: asset != null
-                        ? Image.asset(
-                            asset,
-                            fit: BoxFit.cover,
-                            cacheWidth: 400,
-                            errorBuilder: (_, _, _) =>
-                                Container(color: AppTheme.surface2),
-                          )
-                        : Container(color: AppTheme.surface2),
-                  ),
-                ),
-                const SizedBox(width: AppTheme.sm),
-                Text(
-                  map.displayName,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppTheme.md),
-            Wrap(
-              spacing: AppTheme.sm,
-              runSpacing: AppTheme.sm,
-              children: [
-                StatDisplay(label: 'Games', value: '${map.games}'),
-                WinLossStat(wins: map.wins, losses: map.losses),
-                StatDisplay(
-                  label: 'Avg RP',
-                  value: RankedOverviewHighlights._signed(map.avgRpPerGame),
-                ),
-                StatDisplay(
-                  label: 'Total RP',
-                  value: RankedOverviewHighlights._signed(map.totalRp.toDouble()),
-                ),
-                StatDisplay(
-                  label: 'Avg Kills',
-                  value: map.avgKills.toStringAsFixed(1),
-                ),
-                StatDisplay(
-                  label: 'Total Kills',
-                  value: formatNumber(map.totalKills),
-                ),
-                StatDisplay(
-                  label: 'Avg Dmg',
-                  value: formatNumber(map.avgDamage.round()),
-                ),
-                StatDisplay(
-                  label: 'Total Dmg',
-                  value: formatNumber(map.totalDamage),
-                ),
-                StatDisplay(
-                  label: 'Avg Time',
-                  value: formatDuration(map.avgLengthSecs.round()),
-                ),
-                StatDisplay(
-                  label: 'Total Time',
-                  value: formatDuration(map.totalLengthSecs),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppTheme.md),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => _viewHistory(context),
-                style: FilledButton.styleFrom(backgroundColor: AppTheme.accent),
-                icon: const Icon(Icons.history, size: 18),
-                label: const Text('View all history'),
               ),
             ),
           ],

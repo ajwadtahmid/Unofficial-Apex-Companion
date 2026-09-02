@@ -7,18 +7,24 @@ class StatDisplay extends StatelessWidget {
   final bool highlight;
   final bool compact;
 
+  /// Overrides the value text's color (e.g. green/red for a signed RP figure)
+  /// without changing the surrounding chip style. Takes precedence over
+  /// [highlight] when set.
+  final Color? valueColor;
+
   const StatDisplay({
     super.key,
     required this.label,
     required this.value,
     this.highlight = false,
     this.compact = false,
+    this.valueColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final labelColor = highlight ? AppTheme.accent : AppTheme.muted;
-    final valueColor = highlight ? AppTheme.accent : AppTheme.textPrimary;
+    final valueColor = this.valueColor ?? (highlight ? AppTheme.accent : AppTheme.textPrimary);
     final labelSize = compact ? 9.0 : 10.0;
     final valueSize = compact ? 12.0 : 15.0;
     final pad = compact

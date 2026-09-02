@@ -6,6 +6,15 @@ final _rpFormat = NumberFormat('#,###');
 /// Formats an integer with comma-separated thousands (e.g., 1000 → '1,000').
 String formatNumber(int number) => _rpFormat.format(number);
 
+/// Formats a delta-style number with an explicit '+' for non-negative values
+/// (e.g. RP/game, a comparison delta) — negatives already carry their own '-'.
+String formatSigned(double value) =>
+    '${value >= 0 ? '+' : ''}${value.toStringAsFixed(1)}';
+
+/// [formatSigned], for an already-integer delta (e.g. total RP).
+String formatSignedInt(int value) =>
+    '${value >= 0 ? '+' : ''}${formatNumber(value)}';
+
 /// Returns a relative time string (e.g., '2h ago', '5m ago') based on elapsed time.
 String timeAgo(DateTime timestamp) {
   final elapsed = DateTime.now().difference(timestamp);
