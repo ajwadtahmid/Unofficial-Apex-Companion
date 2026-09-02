@@ -10,9 +10,12 @@ import '../../../widgets/surface_card.dart';
 
 /// Per-match RP progression for the selected split/week (passed in already
 /// filtered). A Session filter narrows the line to a single play session.
+/// [onShowBackup], when set, adds a small icon opening the snapshot-based RP
+/// graph as a backup view.
 class RankedRpChart extends StatefulWidget {
   final List<RankedMatch> matches;
-  const RankedRpChart({super.key, required this.matches});
+  final VoidCallback? onShowBackup;
+  const RankedRpChart({super.key, required this.matches, this.onShowBackup});
 
   @override
   State<RankedRpChart> createState() => _RankedRpChartState();
@@ -51,13 +54,30 @@ class _RankedRpChartState extends State<RankedRpChart> {
                   letterSpacing: 0.5,
                 ),
               ),
-              if (sessions.isNotEmpty)
-                _SessionPicker(
-                  sessions: sessions,
-                  selectedIndex: selected,
-                  fmt: _sessionFmt,
-                  onSelected: (i) => setState(() => _sessionIndex = i),
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.onShowBackup != null)
+                    IconButton(
+                      icon: const Icon(Icons.backup_outlined, size: 16),
+                      tooltip: 'Snapshot Graph',
+                      color: AppTheme.muted,
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: widget.onShowBackup,
+                    ),
+                  if (widget.onShowBackup != null && sessions.isNotEmpty)
+                    const SizedBox(width: AppTheme.sm),
+                  if (sessions.isNotEmpty)
+                    _SessionPicker(
+                      sessions: sessions,
+                      selectedIndex: selected,
+                      fmt: _sessionFmt,
+                      onSelected: (i) => setState(() => _sessionIndex = i),
+                    ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: AppTheme.md),

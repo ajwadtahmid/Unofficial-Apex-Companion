@@ -4,12 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../constants/prefs_keys.dart';
 import '../../models/player_stats.dart';
 import '../../models/ranked_match.dart';
+import '../../models/season_meta.dart';
 import '../../providers/ranked_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/error_messages.dart';
+import '../../utils/formatting/snapshot_types.dart';
 import '../../utils/ranked/ranked_aggregates.dart';
 import '../../utils/ranked/ranked_period.dart';
 import '../../utils/theme.dart';
+import '../../widgets/graph_card.dart' show showSnapshotBackupSheet;
 import 'ranked_all_trackers_screen.dart';
 import 'ranked_compare_tab.dart';
 import 'ranked_legend_map_matrix_screen.dart';
@@ -38,6 +41,8 @@ class RankedBreakdownBody extends ConsumerStatefulWidget {
   final String uid;
   final PlayerStats stats;
   final int? rpDelta;
+  final List<StatSnapshot> snapshots;
+  final Map<String, SeasonMeta> allSeasons;
   final List<LegendStat> legendStats;
   final bool compactLegendCards;
   final List<String> legendStack;
@@ -48,6 +53,8 @@ class RankedBreakdownBody extends ConsumerStatefulWidget {
     required this.uid,
     required this.stats,
     required this.rpDelta,
+    required this.snapshots,
+    required this.allSeasons,
     required this.legendStats,
     required this.compactLegendCards,
     required this.legendStack,
@@ -299,6 +306,8 @@ class _RankedBreakdownBodyState extends ConsumerState<RankedBreakdownBody> {
           uid: widget.uid,
           stats: widget.stats,
           rpDelta: widget.rpDelta,
+          snapshots: widget.snapshots,
+          allSeasons: widget.allSeasons,
           summary: summary,
           matches: filtered,
           legends: legends,
@@ -412,6 +421,8 @@ class _OverviewTab extends StatelessWidget {
   final String uid;
   final PlayerStats stats;
   final int? rpDelta;
+  final List<StatSnapshot> snapshots;
+  final Map<String, SeasonMeta> allSeasons;
   final RankedSummary summary;
   final List<RankedMatch> matches;
   final List<LegendBreakdown> legends;
@@ -425,6 +436,8 @@ class _OverviewTab extends StatelessWidget {
     required this.uid,
     required this.stats,
     required this.rpDelta,
+    required this.snapshots,
+    required this.allSeasons,
     required this.summary,
     required this.matches,
     required this.legends,
@@ -454,7 +467,16 @@ class _OverviewTab extends StatelessWidget {
           const SizedBox(height: AppTheme.md),
           RankedSummaryHeader(summary: summary, uid: uid),
           const SizedBox(height: AppTheme.md),
-          RankedRpChart(matches: matches),
+          RankedRpChart(
+            matches: matches,
+            onShowBackup: () => showSnapshotBackupSheet(
+              context,
+              snapshots: snapshots,
+              currentSeason: stats.rankedSeason,
+              allSeasons: allSeasons,
+              currentRp: stats.rankScore,
+            ),
+          ),
           const SizedBox(height: AppTheme.md),
           RankedStatsCard(summary: summary),
           const SizedBox(height: AppTheme.md),

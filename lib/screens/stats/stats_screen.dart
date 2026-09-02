@@ -484,6 +484,8 @@ class _StatsBodyState extends ConsumerState<_StatsBody>
             uid: stats.uid,
             stats: stats,
             rpDelta: rpDelta,
+            snapshots: snapshots,
+            allSeasons: allSeasons,
             legendStats: _mergedLegends,
             compactLegendCards: widget.compactLegendCards,
             legendStack: _legendStack,

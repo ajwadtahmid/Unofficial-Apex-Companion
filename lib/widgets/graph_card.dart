@@ -10,6 +10,68 @@ import 'graph_week_tab_strip.dart';
 import 'surface_card.dart';
 import '../utils/formatting/format.dart' show formatNumber;
 
+/// Opens [GraphCard] — the snapshot-based RP history — as a bottom sheet.
+/// A backup view of the match-based [RankedRpChart]: built from periodic
+/// snapshots rather than recorded matches, so it stays available even when
+/// match history has gaps.
+Future<void> showSnapshotBackupSheet(
+  BuildContext context, {
+  required List<StatSnapshot> snapshots,
+  SeasonMeta? currentSeason,
+  Map<String, SeasonMeta> allSeasons = const {},
+  int? currentRp,
+}) {
+  return showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppTheme.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.radiusLg)),
+    ),
+    builder: (_) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.muted,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppTheme.md),
+            const Text(
+              'Snapshot Backup Graph',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: AppTheme.sm),
+            const Text(
+              'Built from RP snapshots this device records locally while the '
+              'app is open, unlike the other graph, which comes from your '
+              'match history from apexlegendsstatus.com. If the app isn\'t '
+              'kept open, this one will have larger gaps.',
+              style: TextStyle(fontSize: 13, color: AppTheme.muted, height: 1.4),
+            ),
+            const SizedBox(height: AppTheme.md),
+            GraphCard(
+              snapshots: snapshots,
+              currentSeason: currentSeason,
+              allSeasons: allSeasons,
+              currentRp: currentRp,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class GraphCard extends StatefulWidget {
   final List<StatSnapshot> snapshots;
   final SeasonMeta? currentSeason;
