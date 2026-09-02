@@ -4,20 +4,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../constants/api_constants.dart';
 import '../../models/player_stats.dart';
-import '../../providers/api_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/ranked_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/app_logger.dart';
 import '../../utils/error_messages.dart';
 import '../../utils/formatting/season_utils.dart';
+import '../../utils/ranked/ranked_period.dart';
 import '../../utils/tracking/snapshot_state_mixin.dart';
 import '../../utils/storage/storage.dart';
 import '../../utils/notifications.dart';
 import '../../utils/theme.dart';
 import '../../widgets/profile_manager_sheet.dart';
 import '../../widgets/widgets.dart';
+import '../ranked/ranked_breakdown_body.dart';
+import '../ranked/widgets/ranked_info_sheet.dart';
+import '../ranked/widgets/ranked_period_selector.dart'
+    show RankedSplitDropdown, RankedWeekStrip;
 
+/// My Stats — the app's default tab. Hosts the player's own snapshot info
+/// plus the full Ranked Breakdown (rank header, RP graph, and every Ranked
+/// tab), merged into one screen so users don't have to jump between two tabs
+/// to see their own numbers.
 class StatsScreen extends ConsumerWidget {
   const StatsScreen({super.key});
 
@@ -126,15 +134,38 @@ class _StatsViewState extends ConsumerState<_StatsView> {
     });
   }
 
+  /// Combined manual refresh: both My Stats (`/player`) and Ranked's match
+  /// history are independent syncs with their own cooldowns, but there's only
+  /// one refresh control in the AppBar, so a tap fires both.
   Future<void> _sync() async {
-    if (ref.read(myPlayerStatsProvider).isLoading) return;
-    ref.invalidate(myPlayerStatsProvider);
-    try {
-      await ref.read(myPlayerStatsProvider.future);
-    } catch (e, st) {
-      // Error surfaces via myPlayerStatsProvider's AsyncError state in the UI.
-      log.w('Stats sync failed', error: e, stackTrace: st);
+    final uid = ref.read(playerSettingsProvider).uid;
+    final futures = <Future<void>>[];
+
+    if (!ref.read(myPlayerStatsProvider).isLoading) {
+      ref.invalidate(myPlayerStatsProvider);
+      futures.add(
+        ref.read(myPlayerStatsProvider.future).then((_) {}).catchError((
+          Object e,
+          StackTrace st,
+        ) {
+          // Error surfaces via myPlayerStatsProvider's AsyncError state in the UI.
+          log.w('Stats sync failed', error: e, stackTrace: st);
+        }),
+      );
     }
+
+    ref.invalidate(rankedSyncProvider(uid));
+    futures.add(
+      ref.read(rankedSyncProvider(uid).future).then((_) {}).catchError((
+        Object e,
+        StackTrace st,
+      ) {
+        // Error surfaces through rankedSyncProvider's own AsyncError state.
+        log.w('Ranked sync failed', error: e, stackTrace: st);
+      }),
+    );
+
+    await Future.wait(futures);
   }
 
   Future<void> _openOnALS(
@@ -151,8 +182,6 @@ class _StatsViewState extends ConsumerState<_StatsView> {
       context.showMessage('Could not open link');
     }
   }
-
-  void _showTrackerInfo(BuildContext context) => showTrackerInfoSheet(context);
 
   void _openChangePlayer(BuildContext context) {
     showModalBottomSheet(
@@ -185,6 +214,31 @@ class _StatsViewState extends ConsumerState<_StatsView> {
       playerSettingsProvider.select((s) => s.compactLegendCards),
     );
     final statsAsync = ref.watch(myPlayerStatsProvider);
+    final isSyncing =
+        statsAsync.isLoading || ref.watch(rankedSyncProvider(uid)).isLoading;
+
+    // Built purely for the AppBar's split dropdown + week strip — the actual
+    // Ranked content (including its own loading/error handling) lives in
+    // RankedBreakdownBody, which resolves the same split independently.
+    final splits = ref.watch(rankedSplitsProvider(uid)).asData?.value;
+    final period = ref.watch(rankedPeriodProvider);
+    RankedView? shell;
+    if (splits != null && splits.isNotEmpty) {
+      final effId = effectiveSplitId(splits, period.splitId);
+      final bucket = splits.firstWhere((b) => b.id == effId);
+      final weeks = weeksForBucket(bucket);
+      final effWeek = (period.weekIndex >= 0 && period.weekIndex < weeks.length)
+          ? period.weekIndex
+          : -1;
+      shell = RankedView(
+        splits: splits,
+        effectiveSplitId: effId,
+        weeks: weeks,
+        weekIndex: effWeek,
+        filtered: const [],
+        history: const [],
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -211,16 +265,18 @@ class _StatsViewState extends ConsumerState<_StatsView> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.info_outline),
-            tooltip: 'Tracker info',
-            onPressed: () => _showTrackerInfo(context),
-          ),
-          IconButton(
             icon: const Icon(Icons.public),
             tooltip: 'Open on ALS',
             onPressed: () => _openOnALS(context, uid, platform),
           ),
-          statsAsync.isLoading
+          // Tracker-equip help lives on the All Trackers page instead
+          // (see RankedAllTrackersScreen).
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'How ranked tracking works',
+            onPressed: () => showRankedInfoSheet(context),
+          ),
+          isSyncing
               ? const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 12),
                   child: SizedBox(
@@ -238,6 +294,10 @@ class _StatsViewState extends ConsumerState<_StatsView> {
                   onPressed: _sync,
                 ),
         ],
+        // Split + week selection get their own row so they don't compete with
+        // the actions above for space — riding in the AppBar's bottom slot
+        // keeps them reading as one header surface either way.
+        bottom: shell != null ? _AppBarBottom(shell: shell) : null,
       ),
       body: statsAsync.when(
         data: (result) {
@@ -252,6 +312,7 @@ class _StatsViewState extends ConsumerState<_StatsView> {
             staleAt: result.staleAt,
             platform: platform,
             compactLegendCards: compactLegendCards,
+            onRefresh: _sync,
           );
         },
         loading: () => const _StatsSkeleton(),
@@ -264,16 +325,43 @@ class _StatsViewState extends ConsumerState<_StatsView> {
   }
 }
 
+/// Split picker (its own row) + week strip, stacked in the AppBar's bottom
+/// slot. Only the split row is shown when the split has no week metadata.
+class _AppBarBottom extends StatelessWidget implements PreferredSizeWidget {
+  final RankedView shell;
+  const _AppBarBottom({required this.shell});
+
+  @override
+  Size get preferredSize =>
+      Size.fromHeight(40 + (shell.weeks.isNotEmpty ? 40 : 0));
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 40,
+          child: Center(child: RankedSplitDropdown(view: shell)),
+        ),
+        if (shell.weeks.isNotEmpty) RankedWeekStrip(view: shell),
+      ],
+    );
+  }
+}
+
 class _StatsBody extends ConsumerStatefulWidget {
   final PlayerStats stats;
   final DateTime? staleAt;
   final String platform;
   final bool compactLegendCards;
+  final Future<void> Function() onRefresh;
 
   const _StatsBody({
     required this.stats,
     required this.platform,
     required this.compactLegendCards,
+    required this.onRefresh,
     this.staleAt,
   });
 
@@ -359,6 +447,10 @@ class _StatsBodyState extends ConsumerState<_StatsBody>
     }
   }
 
+  // The weekly delta is blended with Ranked's own match-history net RP
+  // (`weeklyNetRpProvider`) when available — that's the "more accurate"
+  // source, since it comes from real recorded matches rather than a diff
+  // between two RP snapshots that could straddle a stats refresh gap.
   Future<int?> _historyNetRpThisWeek() async {
     final week = currentWeekRange(widget.stats.rankedSeason);
     if (week == null) return null;
@@ -375,50 +467,30 @@ class _StatsBodyState extends ConsumerState<_StatsBody>
   @override
   Widget build(BuildContext context) {
     final stats = widget.stats;
-    return RefreshIndicator(
-      color: AppTheme.accent,
-      onRefresh: () async {
-        if (!ref.read(refreshCooldownProvider).tryFire('stats:${stats.uid}')) {
-          return;
-        }
-        ref.invalidate(myPlayerStatsProvider);
-        try {
-          await ref.read(myPlayerStatsProvider.future);
-        } catch (e, st) {
-          // Error surfaces via myPlayerStatsProvider's AsyncError state in the UI.
-          log.w('Stats pull-to-refresh failed', error: e, stackTrace: st);
-        }
-      },
-      child: ListView(
-        padding: const EdgeInsets.all(AppTheme.md),
-        children: [
-          if (widget.staleAt != null) ...[
-            StaleBanner(staleAt: widget.staleAt!),
-            const SizedBox(height: AppTheme.sm),
-          ],
-          PlayerInfoCard(stats: stats, rpDelta: rpDelta),
-          const SizedBox(height: AppTheme.md),
-          RankedInfoCard(
-            myRp: stats.rankScore,
-            platform: widget.platform,
-            season: stats.rankedSeason,
+    return Column(
+      children: [
+        if (widget.staleAt != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppTheme.md,
+              AppTheme.md,
+              AppTheme.md,
+              0,
+            ),
+            child: StaleBanner(staleAt: widget.staleAt!),
           ),
-          const SizedBox(height: AppTheme.md),
-          GraphCard(
-            snapshots: snapshots,
-            currentSeason: widget.stats.rankedSeason,
-            allSeasons: allSeasons,
-            currentRp: widget.stats.rankScore,
-          ),
-          const SizedBox(height: AppTheme.md),
-          PlayerStatsTabs(
+        Expanded(
+          child: RankedBreakdownBody(
+            uid: stats.uid,
+            stats: stats,
+            rpDelta: rpDelta,
             legendStats: _mergedLegends,
-            compact: widget.compactLegendCards,
+            compactLegendCards: widget.compactLegendCards,
             legendStack: _legendStack,
+            onRefresh: widget.onRefresh,
           ),
-          const SizedBox(height: AppTheme.xl),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

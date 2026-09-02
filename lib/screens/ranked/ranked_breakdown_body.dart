@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../constants/prefs_keys.dart';
+import '../../models/player_stats.dart';
 import '../../models/ranked_match.dart';
 import '../../providers/ranked_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -9,6 +10,7 @@ import '../../utils/error_messages.dart';
 import '../../utils/ranked/ranked_aggregates.dart';
 import '../../utils/ranked/ranked_period.dart';
 import '../../utils/theme.dart';
+import 'ranked_all_trackers_screen.dart';
 import 'ranked_compare_tab.dart';
 import 'ranked_legend_map_matrix_screen.dart';
 import 'ranked_pick_rate_screen.dart';
@@ -18,26 +20,46 @@ import 'widgets/ranked_breakdown_tables.dart';
 import 'widgets/ranked_highlight_cards.dart';
 import 'widgets/ranked_info_sheet.dart';
 import 'widgets/ranked_match_list.dart';
-import 'widgets/ranked_period_selector.dart'
-    show RankedSplitDropdown, RankedWeekStrip;
 import 'widgets/ranked_rp_chart.dart';
 import 'widgets/ranked_stats_card.dart';
 import 'widgets/ranked_summary_header.dart';
+import '../../widgets/player_info_card.dart';
 
-/// The ranked-breakdown content, hosted as the Ranked bottom-nav tab. It
-/// owns no Scaffold/AppBar and reads everything from providers, so it can be
-/// embedded anywhere (e.g. a future Search-result reuse) without change.
-class RankedBreakdownView extends ConsumerStatefulWidget {
+/// The ranked-breakdown content — tabs, highlights, and every drill-down —
+/// embedded as the lower portion of the My Stats tab, below the shared
+/// AppBar. Everything, including the player-info card and rank header, lives
+/// inside the Overview tab's own single scrollable list rather than a
+/// separately-scrolling block pinned above the tabs — one scroll surface per
+/// tab, no nested scrollables. It reads everything from providers except the
+/// player snapshot and merged legend/weapon trackers (passed in, since those
+/// come from the My Stats side of the merge) and the combined refresh
+/// callback.
+class RankedBreakdownBody extends ConsumerStatefulWidget {
   final String uid;
+  final PlayerStats stats;
+  final int? rpDelta;
+  final List<LegendStat> legendStats;
+  final bool compactLegendCards;
+  final List<String> legendStack;
+  final Future<void> Function() onRefresh;
 
-  const RankedBreakdownView({super.key, required this.uid});
+  const RankedBreakdownBody({
+    super.key,
+    required this.uid,
+    required this.stats,
+    required this.rpDelta,
+    required this.legendStats,
+    required this.compactLegendCards,
+    required this.legendStack,
+    required this.onRefresh,
+  });
 
   @override
-  ConsumerState<RankedBreakdownView> createState() =>
-      _RankedBreakdownViewState();
+  ConsumerState<RankedBreakdownBody> createState() =>
+      _RankedBreakdownBodyState();
 }
 
-class _RankedBreakdownViewState extends ConsumerState<RankedBreakdownView> {
+class _RankedBreakdownBodyState extends ConsumerState<RankedBreakdownBody> {
   Timer? _refreshTimer;
   bool _showCoachMark = false;
 
@@ -76,16 +98,9 @@ class _RankedBreakdownViewState extends ConsumerState<RankedBreakdownView> {
     _dismissCoachMark();
   }
 
-  Future<void> _refresh() async {
-    // Re-syncing cascades to the split picker and the loaded split's matches,
-    // which both await this provider's future.
-    ref.invalidate(rankedSyncProvider(widget.uid));
-    try {
-      await ref.read(rankedSyncProvider(widget.uid).future);
-    } catch (_) {
-      // Error surfaces through the provider's AsyncError state.
-    }
-  }
+  // Mirrors the combined My Stats + Ranked sync (see StatsScreen._sync), so
+  // a manual retry or pull-to-refresh here matches the AppBar's button.
+  Future<void> _refresh() => widget.onRefresh();
 
   @override
   Widget build(BuildContext context) {
@@ -97,95 +112,50 @@ class _RankedBreakdownViewState extends ConsumerState<RankedBreakdownView> {
         ref.watch(rankedSyncProvider(widget.uid)).value ==
         RankedSyncOutcome.offline;
 
-    // A matches-free "shell" view (splits + weeks only) so the AppBar's split
-    // dropdown and week strip render the moment the picker resolves, before the
-    // selected split's matches load. Null until there's at least one split.
-    RankedView? shell;
-    final splits = splitsAsync.asData?.value;
-    if (splits != null && splits.isNotEmpty) {
-      final effId = effectiveSplitId(splits, period.splitId);
-      final bucket = splits.firstWhere((b) => b.id == effId);
-      final weeks = weeksForBucket(bucket);
-      final effWeek = (period.weekIndex >= 0 && period.weekIndex < weeks.length)
-          ? period.weekIndex
-          : -1;
-      shell = RankedView(
-        splits: splits,
-        effectiveSplitId: effId,
-        weeks: weeks,
-        weekIndex: effWeek,
-        filtered: const [],
-        history: const [],
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ranked Breakdown'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            tooltip: 'How tracking works',
-            onPressed: () => showRankedInfoSheet(context),
+    return Column(
+      children: [
+        if (_showCoachMark)
+          _InfoCoachMark(
+            onLearnMore: _openInfoFromCoachMark,
+            onDismiss: _dismissCoachMark,
           ),
-          if (shell != null) RankedSplitDropdown(view: shell),
-        ],
-        // Weeks ride in the AppBar's bottom slot so split + weeks read as one
-        // header surface instead of a separate floating strip.
-        bottom: (shell != null && shell.weeks.isNotEmpty)
-            ? RankedWeekStrip(view: shell)
-            : null,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (_showCoachMark)
-              _InfoCoachMark(
-                onLearnMore: _openInfoFromCoachMark,
-                onDismiss: _dismissCoachMark,
-              ),
-            if (isOffline) const _OfflineBanner(),
-            Expanded(
-              child: splitsAsync.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(color: AppTheme.accent),
-                ),
-                error: (e, _) => _errorState(e),
-                data: (splits) {
-                  if (splits.isEmpty) return _emptyState();
-                  final effId = shell!.effectiveSplitId;
-
-                  // Lifetime: every split aggregated in SQL — no matches hydrated.
-                  if (isLifetimeSplit(effId)) {
-                    return ref
-                        .watch(rankedLifetimeAggregatesProvider(widget.uid))
-                        .when(
-                          loading: _spinner,
-                          error: (e, _) => _errorState(e),
-                          data: _lifetimeTabs,
-                        );
-                  }
-
-                  // Otherwise load only the selected split's matches (and its
-                  // aggregates, memoized in the provider rather than recomputed here).
-                  return ref
-                      .watch(
-                        rankedSplitViewProvider((
-                          uid: widget.uid,
-                          splitId: effId,
-                        )),
-                      )
-                      .when(
-                        loading: _spinner,
-                        error: (e, _) => _errorState(e),
-                        data: _splitTabs,
-                      );
-                },
-              ),
+        if (isOffline) const _OfflineBanner(),
+        Expanded(
+          child: splitsAsync.when(
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: AppTheme.accent),
             ),
-          ],
+            error: (e, _) => _errorState(e),
+            data: (splits) {
+              if (splits.isEmpty) return _emptyState();
+              final effId = effectiveSplitId(splits, period.splitId);
+
+              // Lifetime: every split aggregated in SQL — no matches hydrated.
+              if (isLifetimeSplit(effId)) {
+                return ref
+                    .watch(rankedLifetimeAggregatesProvider(widget.uid))
+                    .when(
+                      loading: _spinner,
+                      error: (e, _) => _errorState(e),
+                      data: _lifetimeTabs,
+                    );
+              }
+
+              // Otherwise load only the selected split's matches (and its
+              // aggregates, memoized in the provider rather than recomputed here).
+              return ref
+                  .watch(
+                    rankedSplitViewProvider((uid: widget.uid, splitId: effId)),
+                  )
+                  .when(
+                    loading: _spinner,
+                    error: (e, _) => _errorState(e),
+                    data: _splitTabs,
+                  );
+            },
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -327,10 +297,15 @@ class _RankedBreakdownViewState extends ConsumerState<RankedBreakdownView> {
       [
         _OverviewTab(
           uid: widget.uid,
+          stats: widget.stats,
+          rpDelta: widget.rpDelta,
           summary: summary,
           matches: filtered,
           legends: legends,
           maps: maps,
+          legendStats: widget.legendStats,
+          compactLegendCards: widget.compactLegendCards,
+          legendStack: widget.legendStack,
           onRefresh: _refresh,
         ),
         RankedLegendBreakdown(
@@ -352,22 +327,26 @@ class _RankedBreakdownViewState extends ConsumerState<RankedBreakdownView> {
 
   Widget _lifetimeTabs(RankedLifetimeAggregates agg) {
     final store = ref.read(rankedHistoryStoreProvider);
+    // Lifetime spans every split, and RP resets each split — so a lifetime
+    // net-RP figure would sum across those resets (the exact bug documented
+    // in WEEKLY_RP_FIX_REPORT.md). The rank header and RP graph are both
+    // built on that figure, so they're hidden here, same as the graph.
     return _tabShell(
       'lifetime',
       const ['Overview', 'Legends', 'Maps'],
       [
-        // Lifetime overview: aggregate stats, highlights, and time-of-day. The
-        // RP chart, rank-progress header, and sessions are omitted — they're
-        // season-relative (RP resets each split) or too heavy at lifetime scale
-        // (sessions). Time-of-day only needs start time + RP, so it's a good
-        // Lifetime fit and is fed by a lightweight SQL projection, not full
-        // match hydration.
+        // Lifetime overview: aggregate stats, highlights, and time-of-day.
+        // Sessions are omitted too — too heavy at lifetime scale. Time-of-day
+        // only needs start time + RP, so it's a good Lifetime fit and is fed
+        // by a lightweight SQL projection, not full match hydration.
         RefreshIndicator(
           color: AppTheme.accent,
           onRefresh: _refresh,
           child: ListView(
             padding: const EdgeInsets.all(AppTheme.md),
             children: [
+              PlayerInfoCard(stats: widget.stats, rpDelta: widget.rpDelta),
+              const SizedBox(height: AppTheme.md),
               RankedStatsCard(summary: agg.summary),
               const SizedBox(height: AppTheme.md),
               RankedOverviewHighlights(
@@ -404,6 +383,12 @@ class _RankedBreakdownViewState extends ConsumerState<RankedBreakdownView> {
                   ],
                 ),
               ),
+              const SizedBox(height: AppTheme.md),
+              RankedAllTrackersEntry(
+                legendStats: widget.legendStats,
+                compact: widget.compactLegendCards,
+                legendStack: widget.legendStack,
+              ),
               const SizedBox(height: AppTheme.lg),
             ],
           ),
@@ -425,18 +410,28 @@ class _RankedBreakdownViewState extends ConsumerState<RankedBreakdownView> {
 
 class _OverviewTab extends StatelessWidget {
   final String uid;
+  final PlayerStats stats;
+  final int? rpDelta;
   final RankedSummary summary;
   final List<RankedMatch> matches;
   final List<LegendBreakdown> legends;
   final List<MapBreakdown> maps;
+  final List<LegendStat> legendStats;
+  final bool compactLegendCards;
+  final List<String> legendStack;
   final Future<void> Function() onRefresh;
 
   const _OverviewTab({
     required this.uid,
+    required this.stats,
+    required this.rpDelta,
     required this.summary,
     required this.matches,
     required this.legends,
     required this.maps,
+    required this.legendStats,
+    required this.compactLegendCards,
+    required this.legendStack,
     required this.onRefresh,
   });
 
@@ -455,11 +450,13 @@ class _OverviewTab extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(AppTheme.md),
         children: [
+          PlayerInfoCard(stats: stats, rpDelta: rpDelta),
+          const SizedBox(height: AppTheme.md),
           RankedSummaryHeader(summary: summary, uid: uid),
           const SizedBox(height: AppTheme.md),
-          RankedStatsCard(summary: summary),
-          const SizedBox(height: AppTheme.md),
           RankedRpChart(matches: matches),
+          const SizedBox(height: AppTheme.md),
+          RankedStatsCard(summary: summary),
           const SizedBox(height: AppTheme.md),
           RankedOverviewHighlights(
             legends: legends,
@@ -476,7 +473,10 @@ class _OverviewTab extends StatelessWidget {
                 Expanded(child: RankedLegendMapMatrixEntry(matches: matches)),
                 const SizedBox(width: AppTheme.sm),
                 Expanded(
-                  child: RankedPickRateEntry(summary: summary, legends: legends),
+                  child: RankedPickRateEntry(
+                    summary: summary,
+                    legends: legends,
+                  ),
                 ),
               ],
             ),
@@ -507,6 +507,12 @@ class _OverviewTab extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: AppTheme.md),
+          RankedAllTrackersEntry(
+            legendStats: legendStats,
+            compact: compactLegendCards,
+            legendStack: legendStack,
           ),
           const SizedBox(height: AppTheme.lg),
         ],
@@ -675,8 +681,6 @@ class _StepRow extends StatelessWidget {
   }
 }
 
-/// One-time nudge pointing new visitors at the info icon in the AppBar.
-/// Dismissed (or tapped) once, then never shown again.
 /// Strip shown above the tabs when the last sync failed and persisted history
 /// is still on screen. Sits in the layout alongside the tabs rather than
 /// replacing them, unlike [_MessageState].
@@ -716,6 +720,8 @@ class _OfflineBanner extends StatelessWidget {
   }
 }
 
+/// One-time nudge pointing new visitors at the "How tracking works" AppBar
+/// icon. Dismissed (or tapped) once, then never shown again.
 class _InfoCoachMark extends StatelessWidget {
   final VoidCallback onLearnMore;
   final VoidCallback onDismiss;

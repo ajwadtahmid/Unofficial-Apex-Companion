@@ -19,7 +19,7 @@ Future<void> _openFullGuide() async {
 }
 
 /// "How ranked tracking works" — explains the mechanics behind the empty
-/// states in RankedBreakdownView so a confused user has somewhere to look
+/// states in RankedBreakdownBody so a confused user has somewhere to look
 /// beyond the inline copy.
 void showRankedInfoSheet(BuildContext context) {
   showModalBottomSheet(
@@ -91,6 +91,19 @@ void showRankedInfoSheet(BuildContext context) {
                 'recovered.',
           ]),
           const SizedBox(height: AppTheme.lg),
+          const Text(
+            'Legend Trackers',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: AppTheme.sm),
+          const Text(
+            'To see accurate statistics, equip your 3 most desired trackers on '
+            'the currently selected Legend and resync your profile.',
+            style: TextStyle(fontSize: 14, color: AppTheme.muted, height: 1.5),
+          ),
+          const SizedBox(height: AppTheme.lg),
+          ..._trackerNamesSection(),
+          const SizedBox(height: AppTheme.lg),
           Center(
             child: InkWell(
               onTap: _openFullGuide,
@@ -105,6 +118,63 @@ void showRankedInfoSheet(BuildContext context) {
       ),
     ),
   );
+}
+
+List<Widget> _trackerNamesSection() {
+  const items = [
+    ('Website/App Display', 'BR Kills, BR Wins, BR Damage, etc.'),
+    ('In-Game Display', 'Apex Kills, Apex Wins, Apex Damage, etc.'),
+  ];
+  return [
+    const Text(
+      'About Tracker Names',
+      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+    ),
+    const SizedBox(height: AppTheme.sm),
+    Container(
+      padding: const EdgeInsets.all(AppTheme.md),
+      decoration: BoxDecoration(
+        color: AppTheme.surface2,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: items.indexed.map((record) {
+          final (index, item) = record;
+          final isLast = index == items.length - 1;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textPrimary,
+                    height: 1.5,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '${item.$1}: ',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.accent,
+                      ),
+                    ),
+                    TextSpan(text: item.$2),
+                  ],
+                ),
+              ),
+              if (!isLast)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppTheme.sm),
+                  child: Divider(color: AppTheme.surface, height: 1),
+                ),
+            ],
+          );
+        }).toList(),
+      ),
+    ),
+  ];
 }
 
 List<Widget> _section(String title, List<String> paragraphs) {

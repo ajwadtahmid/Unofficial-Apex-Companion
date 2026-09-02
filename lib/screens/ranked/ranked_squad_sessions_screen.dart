@@ -6,9 +6,8 @@ import '../../widgets/surface_card.dart';
 import 'ranked_sessions_screen.dart';
 import 'widgets/ranked_squad_breakdown_card.dart';
 
-/// How many sessions are visible initially, and how many "Load more" adds each
-/// tap — matches the cap the old standalone sessions card and its
-/// "Recent sessions" screen both used as a one-shot limit.
+/// How many sessions are visible initially, and how many each "Load more"
+/// tap adds.
 const _kSessionPageSize = 5;
 
 /// Entry point for the combined Squad & Sessions screen. [matches] is used

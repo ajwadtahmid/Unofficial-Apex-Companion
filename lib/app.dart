@@ -11,7 +11,6 @@ import 'providers/predator_provider.dart';
 import 'providers/server_provider.dart';
 import 'providers/settings_provider.dart';
 import 'screens/home/home_screen.dart';
-import 'screens/ranked/ranked_breakdown_view.dart';
 import 'screens/search/search_screen.dart';
 import 'screens/stats/stats_screen.dart';
 import 'screens/settings/settings_screen.dart';
@@ -114,11 +113,8 @@ class _AppShellState extends ConsumerState<_AppShell>
   Widget _screenFor(AppTab tab) {
     final screen = switch (tab) {
       AppTab.home => const HomeScreen(),
+      // Hosts the full Ranked Breakdown content too — see StatsScreen.
       AppTab.stats => const StatsScreen(),
-      AppTab.ranked => RankedBreakdownView(
-          // Owns its own Scaffold/AppBar (the AppBar hosts the split selector).
-          uid: ref.watch(playerSettingsProvider.select((s) => s.uid)),
-        ),
       AppTab.search => const SearchScreen(),
       AppTab.settings => const SettingsScreen(),
     };
@@ -137,11 +133,6 @@ class _AppShellState extends ConsumerState<_AppShell>
         icon: Icon(Icons.bar_chart_outlined),
         activeIcon: Icon(Icons.bar_chart),
         label: 'My Stats',
-      ),
-    AppTab.ranked => const BottomNavigationBarItem(
-        icon: Icon(Icons.leaderboard_outlined),
-        activeIcon: Icon(Icons.leaderboard),
-        label: 'Ranked',
       ),
     AppTab.search => const BottomNavigationBarItem(
         icon: Icon(Icons.search_outlined),

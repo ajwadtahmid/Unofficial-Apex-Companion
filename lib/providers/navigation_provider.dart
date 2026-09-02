@@ -1,29 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'settings_provider.dart';
 
-/// Stable tab identities. The visible set (and therefore each tab's *position*)
-/// varies — Ranked only appears once a profile is linked — so the app tracks the
-/// selected tab by identity, never by raw index. This keeps the stored
-/// `defaultTab` and navigation correct regardless of whether Ranked is present.
-enum AppTab { home, stats, ranked, search, settings }
+/// Stable tab identities. The app tracks the selected tab by identity, never by
+/// raw index, so the stored `defaultTab` and navigation stay correct if the
+/// visible set ever changes again in the future.
+enum AppTab { home, stats, search, settings }
 
-/// The ordered list of tabs currently visible. Ranked sits between My Stats and
-/// Search, and only appears once a player profile is set.
+/// The ordered list of tabs currently visible. Ranked Breakdown is part of
+/// My Stats (see `StatsScreen`), not a separate tab.
 final visibleTabsProvider = Provider<List<AppTab>>((ref) {
-  final rankedVisible = ref.watch(
-    playerSettingsProvider.select((s) => s.isPlayerSet),
-  );
-  return [
-    AppTab.home,
-    AppTab.stats,
-    if (rankedVisible) AppTab.ranked,
-    AppTab.search,
-    AppTab.settings,
-  ];
+  return const [AppTab.home, AppTab.stats, AppTab.search, AppTab.settings];
 });
 
 /// Maps the legacy `defaultTab` setting (0=Home 1=Stats 2=Search 3=Settings) to
-/// a stable [AppTab]. Ranked is intentionally not a selectable default.
+/// a stable [AppTab].
 AppTab appTabForDefault(int defaultTab) => switch (defaultTab) {
   1 => AppTab.stats,
   2 => AppTab.search,

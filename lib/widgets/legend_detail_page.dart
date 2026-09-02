@@ -250,10 +250,10 @@ class LegendDetailPage extends StatelessWidget {
             const SizedBox(height: AppTheme.md),
           ],
 
-          // ── All Trackers ───────────────────────────────────────────
+          // ── Trackers ───────────────────────────────────────────────
           if (displayTrackers.isNotEmpty) ...[
             const Text(
-              'All Trackers',
+              'Trackers',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: AppTheme.sm),

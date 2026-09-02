@@ -38,20 +38,10 @@ void showTrackerInfoSheet(BuildContext context) {
           ),
           const SizedBox(height: AppTheme.md),
           const Text(
-            'Legend Trackers',
+            'Tracker Info',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: AppTheme.sm),
-          const Text(
-            'To see accurate statistics, equip your 3 most desired trackers on the currently selected Legend and resync your profile.',
-            style: TextStyle(fontSize: 14, color: AppTheme.muted, height: 1.5),
-          ),
           const SizedBox(height: AppTheme.lg),
-          ..._buildTrackerInfoSection('About Tracker Names', const [
-            ('Website/App Display', 'BR Kills, BR Wins, BR Damage, etc.'),
-            ('In-Game Display', 'Apex Kills, Apex Wins, Apex Damage, etc.'),
-          ]),
-          const SizedBox(height: AppTheme.md),
           ..._buildTrackerInfoSection('Available Stats Calculations', const [
             ('Damage per Kill', 'BR Damage & BR Kills'),
             ('Avg Kills per Game', 'BR Kills & BR Games played'),

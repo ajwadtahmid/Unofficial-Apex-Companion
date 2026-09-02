@@ -48,7 +48,9 @@ Future<void> showLegendDetailSheet(
 /// legend — a pure read of what [mergeLegendStats] already wrote during the
 /// normal My Stats flow, so opening this never re-triggers that merge — and
 /// pushes the same [LegendDetailPage] My Stats uses; hidden when no matching
-/// stat exists.
+/// stat exists. Labeled "Trackers" (not "All Trackers", the Overview button
+/// that opens every legend's trackers) since this one is scoped to a single
+/// legend.
 class _LegendDetailSheet extends ConsumerWidget {
   final LegendBreakdown breakdown;
   final Future<List<RankedMatch>> Function(String legend) matchesFor;
@@ -218,7 +220,7 @@ class _LegendDetailSheet extends ConsumerWidget {
                         side: const BorderSide(color: AppTheme.accent),
                       ),
                       icon: const Icon(Icons.bar_chart, size: 18),
-                      label: const Text('All Trackers'),
+                      label: const Text('Trackers'),
                     ),
                   ),
                   const SizedBox(width: AppTheme.sm),
