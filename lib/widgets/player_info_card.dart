@@ -129,7 +129,7 @@ class PlayerInfoCard extends StatelessWidget {
             const SizedBox(height: 2),
           ],
           Text(
-            'Playing: ${stats.currentLegend}',
+            'Currently Tracking: ${stats.currentLegend}',
             style: const TextStyle(color: AppTheme.accent2, fontSize: 13),
           ),
           const SizedBox(height: AppTheme.md),

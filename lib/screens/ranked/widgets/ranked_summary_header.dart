@@ -15,10 +15,18 @@ class RankedSummaryHeader extends ConsumerWidget {
   final RankedSummary summary;
   final String uid;
 
+  /// The live RP from `/player` (always as fresh as the last stats poll).
+  /// [summary.currentRp] instead comes from match history via `/games`,
+  /// which syncs on its own, much slower cooldown — so the two can disagree
+  /// right after a session. When they do, a small badge explains the gap
+  /// instead of silently showing two different numbers on screen.
+  final int? livePlayerRp;
+
   const RankedSummaryHeader({
     super.key,
     required this.summary,
     required this.uid,
+    this.livePlayerRp,
   });
 
   @override
@@ -30,8 +38,11 @@ class RankedSummaryHeader extends ConsumerWidget {
     final predatorRp = _predatorRp(ref);
     final progress = summary.games == 0
         ? null
-        : RankProgress.from(summary,
-            goalIndex: goalIndex, predatorRp: predatorRp);
+        : RankProgress.from(
+            summary,
+            goalIndex: goalIndex,
+            predatorRp: predatorRp,
+          );
 
     return SurfaceCard(
       padding: const EdgeInsets.all(AppTheme.md),
@@ -45,7 +56,10 @@ class RankedSummaryHeader extends ConsumerWidget {
               // was tagged with, which doesn't track the live Predator cutoff.
               if (progress != null) ...[
                 Image.asset(
-                  rankAssetPathByTier(progress.isPredator, progress.currentIndex),
+                  rankAssetPathByTier(
+                    progress.isPredator,
+                    progress.currentIndex,
+                  ),
                   width: 36,
                   height: 36,
                   fit: BoxFit.contain,
@@ -70,23 +84,48 @@ class RankedSummaryHeader extends ConsumerWidget {
                       'Current RP',
                       style: TextStyle(color: AppTheme.muted, fontSize: 11),
                     ),
-                    Text(
-                      formatNumber(summary.currentRp),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            formatNumber(summary.currentRp),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        if (livePlayerRp != null &&
+                            livePlayerRp != summary.currentRp) ...[
+                          const SizedBox(width: 6),
+                          Tooltip(
+                            message:
+                                'Match history hasn\'t synced yet.\n'
+                                'It updates periodically and will catch up '
+                                'automatically.\n'
+                                'Live RP: ${formatNumber(livePlayerRp!)}',
+                            child: const Icon(
+                              Icons.sync,
+                              size: 18,
+                              color: AppTheme.orange,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: AppTheme.sm),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: netColor.withAlpha(30),
                   borderRadius: BorderRadius.circular(AppTheme.radiusSm),
@@ -118,7 +157,8 @@ class RankedSummaryHeader extends ConsumerWidget {
 
   int? _predatorRp(WidgetRef ref) {
     final platform = ref.watch(
-        playerSettingsProvider.select((s) => s.platform));
+      playerSettingsProvider.select((s) => s.platform),
+    );
     final async = ref.watch(predatorProvider);
     final data = async.asData?.value.data;
     return data?.forPlatform(platform)?.minRp;
@@ -186,7 +226,10 @@ class _ProgressBars extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: _estimateWidget(
-              progress.rpTo(next), progress.gamesTo(next), next),
+            progress.rpTo(next),
+            progress.gamesTo(next),
+            next,
+          ),
         ),
       ],
     );
@@ -212,10 +255,7 @@ class _GoalFooter extends StatelessWidget {
               style: TextStyle(color: AppTheme.muted, fontSize: 12),
             ),
           ),
-          _GoalButton(
-            hasGoal: false,
-            onTap: () => _openGoalSheet(context),
-          ),
+          _GoalButton(hasGoal: false, onTap: () => _openGoalSheet(context)),
         ],
       );
     }
@@ -276,10 +316,7 @@ class _GoalFooter extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppTheme.sm),
-        _GoalButton(
-          hasGoal: true,
-          onTap: () => _openGoalSheet(context),
-        ),
+        _GoalButton(hasGoal: true, onTap: () => _openGoalSheet(context)),
       ],
     );
   }
@@ -294,103 +331,119 @@ class _GoalFooter extends StatelessWidget {
       showDragHandle: true,
       builder: (sheetCtx) {
         return SafeArea(
-          child: Consumer(builder: (context, ref, _) {
-            void choose(int? index) {
-              ref.read(rankGoalProvider(uid).notifier).setGoal(index);
-              Navigator.of(sheetCtx).pop();
-            }
+          child: Consumer(
+            builder: (context, ref, _) {
+              void choose(int? index) {
+                ref.read(rankGoalProvider(uid).notifier).setGoal(index);
+                Navigator.of(sheetCtx).pop();
+              }
 
-            final predatorRp = _livePredatorRp(ref);
+              final predatorRp = _livePredatorRp(ref);
 
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.symmetric(
-                      horizontal: AppTheme.md, vertical: AppTheme.sm),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Set rank goal',
-                      style: TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppTheme.md,
+                      vertical: AppTheme.sm,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Set rank goal',
+                        style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                if (progress.goalIndex != null)
-                  ListTile(
-                    leading: const Icon(Icons.not_interested,
-                        color: AppTheme.muted),
-                    title: const Text('No goal',
-                        style: TextStyle(color: AppTheme.textPrimary)),
-                    onTap: () => choose(null),
-                  ),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: [
-                      for (final i in ladderOptions)
-                        ListTile(
-                          leading: Image.asset(
-                            kRankLadder[i].assetPath,
-                            width: 28,
-                            height: 28,
-                            errorBuilder: (_, _, _) => Icon(
+                  if (progress.goalIndex != null)
+                    ListTile(
+                      leading: const Icon(
+                        Icons.not_interested,
+                        color: AppTheme.muted,
+                      ),
+                      title: const Text(
+                        'No goal',
+                        style: TextStyle(color: AppTheme.textPrimary),
+                      ),
+                      onTap: () => choose(null),
+                    ),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final i in ladderOptions)
+                          ListTile(
+                            leading: Image.asset(
+                              kRankLadder[i].assetPath,
+                              width: 28,
+                              height: 28,
+                              errorBuilder: (_, _, _) => Icon(
                                 Icons.military_tech,
-                                color: kRankLadder[i].color),
+                                color: kRankLadder[i].color,
+                              ),
+                            ),
+                            title: Text(
+                              kRankLadder[i].label,
+                              style: const TextStyle(
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                            trailing: Text(
+                              '${formatNumber(kRankLadder[i].rp)} RP',
+                              style: const TextStyle(
+                                color: AppTheme.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                            selected: i == progress.goalIndex,
+                            onTap: () => choose(i),
                           ),
-                          title: Text(
-                            kRankLadder[i].label,
-                            style:
-                                const TextStyle(color: AppTheme.textPrimary),
-                          ),
-                          trailing: Text(
-                            '${formatNumber(kRankLadder[i].rp)} RP',
-                            style: const TextStyle(
-                                color: AppTheme.muted, fontSize: 12),
-                          ),
-                          selected: i == progress.goalIndex,
-                          onTap: () => choose(i),
-                        ),
-                      if (predatorRp != null && predatorRp > 0)
-                        ListTile(
-                          leading: Image.asset(
-                            'assets/ranks/apex_predator.webp',
-                            width: 24,
-                            height: 24,
-                            errorBuilder: (_, _, _) => const Icon(
+                        if (predatorRp != null && predatorRp > 0)
+                          ListTile(
+                            leading: Image.asset(
+                              'assets/ranks/apex_predator.webp',
+                              width: 24,
+                              height: 24,
+                              errorBuilder: (_, _, _) => const Icon(
                                 Icons.military_tech,
-                                color: kPredatorColor),
+                                color: kPredatorColor,
+                              ),
+                            ),
+                            title: const Text(
+                              kApexPredatorRank,
+                              style: TextStyle(color: kPredatorColor),
+                            ),
+                            trailing: Text(
+                              '${formatNumber(predatorRp)} RP',
+                              style: const TextStyle(
+                                color: AppTheme.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                            selected: progress.isPredatorGoal,
+                            onTap: () => choose(kPredatorGoalIndex),
                           ),
-                          title: const Text(
-                            kApexPredatorRank,
-                            style: TextStyle(color: kPredatorColor),
-                          ),
-                          trailing: Text(
-                            '${formatNumber(predatorRp)} RP',
-                            style: const TextStyle(
-                                color: AppTheme.muted, fontSize: 12),
-                          ),
-                          selected: progress.isPredatorGoal,
-                          onTap: () => choose(kPredatorGoalIndex),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            );
-          }),
+                ],
+              );
+            },
+          ),
         );
       },
     );
   }
 
   int? _livePredatorRp(WidgetRef ref) {
-    final platform =
-        ref.watch(playerSettingsProvider.select((s) => s.platform));
+    final platform = ref.watch(
+      playerSettingsProvider.select((s) => s.platform),
+    );
     final async = ref.watch(predatorProvider);
     final data = async.asData?.value.data;
     return data?.forPlatform(platform)?.minRp;
@@ -415,8 +468,11 @@ class _GoalButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(hasGoal ? Icons.flag : Icons.flag_outlined,
-                size: 13, color: AppTheme.accent),
+            Icon(
+              hasGoal ? Icons.flag : Icons.flag_outlined,
+              size: 13,
+              color: AppTheme.accent,
+            ),
             const SizedBox(width: 4),
             Text(
               hasGoal ? 'Edit goal' : 'Set goal',
@@ -437,7 +493,10 @@ class _GoalButton extends StatelessWidget {
 
 Widget _estimateWidget(int rp, int? games, RankDivision target) {
   const white = TextStyle(
-      color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600);
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+  );
   const muted = TextStyle(color: AppTheme.muted, fontSize: 12);
   final List<InlineSpan> spans;
   if (games == null) {
@@ -448,7 +507,10 @@ Widget _estimateWidget(int rp, int? games, RankDivision target) {
       TextSpan(
         text: target.label,
         style: TextStyle(
-            color: target.color, fontSize: 12, fontWeight: FontWeight.w600),
+          color: target.color,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     ];
   } else {
@@ -462,14 +524,14 @@ Widget _estimateWidget(int rp, int? games, RankDivision target) {
       TextSpan(
         text: target.label,
         style: TextStyle(
-            color: target.color, fontSize: 12, fontWeight: FontWeight.w600),
+          color: target.color,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     ];
   }
-  return Text.rich(
-    TextSpan(children: spans),
-    textAlign: TextAlign.center,
-  );
+  return Text.rich(TextSpan(children: spans), textAlign: TextAlign.center);
 }
 
 String _pacePhrase(int? games, double avg) {
@@ -478,4 +540,3 @@ String _pacePhrase(int? games, double avg) {
   final sign = avg >= 0 ? '+' : '';
   return '~$games ${games == 1 ? 'game' : 'games'} at $sign${avg.toStringAsFixed(1)} RP/game';
 }
-

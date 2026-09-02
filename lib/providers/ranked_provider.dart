@@ -268,7 +268,6 @@ typedef RankedLifetimeAggregates = ({
   List<MapBreakdown> maps,
   List<HourBucket> timeOfDay,
   List<WeekdayBucket> dayOfWeek,
-  ({RankedSummary full, RankedSummary partial}) squadBreakdown,
 });
 
 final rankedLifetimeAggregatesProvider = FutureProvider.autoDispose
@@ -281,8 +280,17 @@ final rankedLifetimeAggregatesProvider = FutureProvider.autoDispose
         maps: await store.mapBreakdownsFor(uid),
         timeOfDay: await store.timeOfDayBucketsFor(uid),
         dayOfWeek: await store.dayOfWeekBucketsFor(uid),
-        squadBreakdown: await store.squadBreakdownFor(uid),
       );
+    });
+
+/// Lifetime-scope Personal Best: the three standout single-game records (RP,
+/// kills, damage) via [RankedHistoryStore.personalBestGamesFor]'s SQL
+/// queries — cheap regardless of history size, unlike full match hydration.
+final rankedPersonalBestProvider = FutureProvider.autoDispose
+    .family<PersonalBestGames, String>((ref, uid) async {
+      await ref.watch(rankedSyncProvider(uid).future);
+      final store = ref.watch(rankedHistoryStoreProvider);
+      return store.personalBestGamesFor(uid);
     });
 
 /// Every aggregate the split-comparison tab needs for one split, bundled the

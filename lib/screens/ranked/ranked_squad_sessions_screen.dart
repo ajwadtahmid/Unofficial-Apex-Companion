@@ -8,7 +8,7 @@ import 'widgets/ranked_squad_breakdown_card.dart';
 
 /// How many sessions are visible initially, and how many each "Load more"
 /// tap adds.
-const _kSessionPageSize = 5;
+const _kSessionPageSize = 6;
 
 /// Entry point for the combined Squad & Sessions screen. [matches] is used
 /// only to derive sessions and is expected empty at Lifetime scope (sessions
@@ -97,8 +97,7 @@ class RankedSquadSessionsScreen extends StatefulWidget {
       _RankedSquadSessionsScreenState();
 }
 
-class _RankedSquadSessionsScreenState
-    extends State<RankedSquadSessionsScreen> {
+class _RankedSquadSessionsScreenState extends State<RankedSquadSessionsScreen> {
   int _visibleCount = _kSessionPageSize;
 
   @override
@@ -138,9 +137,8 @@ class _RankedSquadSessionsScreenState
               if (hasMore)
                 Center(
                   child: TextButton(
-                    onPressed: () => setState(
-                      () => _visibleCount += _kSessionPageSize,
-                    ),
+                    onPressed: () =>
+                        setState(() => _visibleCount += _kSessionPageSize),
                     child: const Text('Load more'),
                   ),
                 ),

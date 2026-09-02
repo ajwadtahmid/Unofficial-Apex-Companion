@@ -746,6 +746,37 @@ class RankedHistoryStore {
     return rows.map(RankedMatch.fromStoredMap).toList();
   }
 
+  /// The single best RP/kills/damage game for [uid] across [seasonId] (null =
+  /// lifetime) — one `ORDER BY ... LIMIT 1` query per stat rather than
+  /// hydrating the whole history, so this stays cheap at Lifetime scope. RP
+  /// excludes reset outliers, matching [RankedMatch.effectiveRpChange]; a
+  /// null kills/damage game means no row in scope ever reported that tracker.
+  Future<PersonalBestGames> personalBestGamesFor(
+    String uid, {
+    String? seasonId,
+  }) async {
+    final db = await _open();
+    final (where, args) = _rankedScope(uid, seasonId);
+
+    Future<RankedMatch?> top(String column, {String? extraWhere}) async {
+      final rows = await db.rawQuery(
+        'SELECT * FROM $table WHERE $where${extraWhere ?? ''} '
+        'ORDER BY $column DESC LIMIT 1',
+        args,
+      );
+      return rows.isEmpty ? null : RankedMatch.fromStoredMap(rows.first);
+    }
+
+    return (
+      bestRpGame: await top(
+        'rp_change',
+        extraWhere: ' AND ABS(rp_change) < $kRankedOutlierThreshold',
+      ),
+      bestKillsGame: await top('kills'),
+      bestDamageGame: await top('damage'),
+    );
+  }
+
   /// Net ranked RP for [uid] from matches ending in `[start, end)`, or null when
   /// local history demonstrably can't cover that window.
   ///

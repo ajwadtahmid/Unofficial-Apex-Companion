@@ -429,16 +429,18 @@ List<RankedSession> sessionize(
       kills += m.kills ?? 0;
       damage += m.damage ?? 0;
     }
-    sessions.add(RankedSession(
-      start: bucket.first.startTime,
-      end: bucket.last.endTime,
-      games: bucket.length,
-      netRp: rp,
-      totalKills: kills,
-      totalDamage: damage,
-      // bucket is chronological; expose newest-first for the drill-down list.
-      matches: bucket.reversed.toList(),
-    ));
+    sessions.add(
+      RankedSession(
+        start: bucket.first.startTime,
+        end: bucket.last.endTime,
+        games: bucket.length,
+        netRp: rp,
+        totalKills: kills,
+        totalDamage: damage,
+        // bucket is chronological; expose newest-first for the drill-down list.
+        matches: bucket.reversed.toList(),
+      ),
+    );
   }
 
   for (var i = 1; i < chrono.length; i++) {
@@ -513,7 +515,9 @@ class RankProgress {
   /// Null once [isPredator] is true, or at Master with no cutoff available.
   RankDivision? get next {
     if (isPredator) return null;
-    if (currentIndex + 1 < kRankLadder.length) return kRankLadder[currentIndex + 1];
+    if (currentIndex + 1 < kRankLadder.length) {
+      return kRankLadder[currentIndex + 1];
+    }
     final rp = predatorRp;
     if (rp != null && rp > 0) {
       return RankDivision(kApexPredatorRank, null, rp, kPredatorColor);
@@ -602,19 +606,22 @@ List<TrackerAggregate> aggregateTrackers(
     }
   }
 
-  final out = totals.keys
-      .map((name) => TrackerAggregate(
-            name: name,
-            matchesPresent: present[name] ?? 0,
-            totalMatches: matches.length,
-            total: totals[name] ?? 0,
-          ))
-      .where((t) => t.coverage >= minCoverage)
-      .toList()
-    ..sort((a, b) {
-      final byCoverage = b.coverage.compareTo(a.coverage);
-      return byCoverage != 0 ? byCoverage : b.total.compareTo(a.total);
-    });
+  final out =
+      totals.keys
+          .map(
+            (name) => TrackerAggregate(
+              name: name,
+              matchesPresent: present[name] ?? 0,
+              totalMatches: matches.length,
+              total: totals[name] ?? 0,
+            ),
+          )
+          .where((t) => t.coverage >= minCoverage)
+          .toList()
+        ..sort((a, b) {
+          final byCoverage = b.coverage.compareTo(a.coverage);
+          return byCoverage != 0 ? byCoverage : b.total.compareTo(a.total);
+        });
   return out;
 }
 
@@ -658,51 +665,70 @@ List<RankedInsight> generateInsightsFromAggregates(
   final insights = <RankedInsight>[];
 
   // Net RP headline.
-  insights.add(RankedInsight(
-    label: summary.netRp >= 0 ? 'Net gain' : 'Net loss',
-    detail:
-        '${summary.netRp >= 0 ? '+' : ''}${summary.netRp} RP over ${summary.games} games',
-    tone: summary.netRp >= 0 ? InsightTone.positive : InsightTone.negative,
-  ));
+  insights.add(
+    RankedInsight(
+      label: summary.netRp >= 0 ? 'Net gain' : 'Net loss',
+      detail:
+          '${summary.netRp >= 0 ? '+' : ''}${summary.netRp} RP over ${summary.games} games',
+      tone: summary.netRp >= 0 ? InsightTone.positive : InsightTone.negative,
+    ),
+  );
 
   // Best / worst legend (min games guard).
-  final qualifyingLegends =
-      legends.where((l) => l.games >= kMinGamesForInsight).toList();
+  final qualifyingLegends = legends
+      .where((l) => l.games >= kMinGamesForInsight)
+      .toList();
   if (qualifyingLegends.isNotEmpty) {
-    final best = qualifyingLegends
-        .reduce((a, b) => a.avgRpPerGame >= b.avgRpPerGame ? a : b);
-    insights.add(RankedInsight(
-      label: 'Best legend',
-      detail:
-          '${best.legend} · ${_signed(best.avgRpPerGame)} RP/game over ${best.games} games',
-      tone: best.avgRpPerGame >= 0 ? InsightTone.positive : InsightTone.neutral,
-    ));
+    final best = qualifyingLegends.reduce(
+      (a, b) => a.avgRpPerGame >= b.avgRpPerGame ? a : b,
+    );
+    insights.add(
+      RankedInsight(
+        label: 'Best legend',
+        detail:
+            '${best.legend} · ${_signed(best.avgRpPerGame)} RP/game over ${best.games} games',
+        tone: best.avgRpPerGame >= 0
+            ? InsightTone.positive
+            : InsightTone.neutral,
+      ),
+    );
     if (qualifyingLegends.length > 1) {
-      final worst = qualifyingLegends
-          .reduce((a, b) => a.avgRpPerGame <= b.avgRpPerGame ? a : b);
+      final worst = qualifyingLegends.reduce(
+        (a, b) => a.avgRpPerGame <= b.avgRpPerGame ? a : b,
+      );
       if (worst.legend != best.legend) {
-        insights.add(RankedInsight(
-          label: 'Weakest legend',
-          detail:
-              '${worst.legend} · ${_signed(worst.avgRpPerGame)} RP/game over ${worst.games} games',
-          tone: worst.avgRpPerGame >= 0 ? InsightTone.neutral : InsightTone.negative,
-        ));
+        insights.add(
+          RankedInsight(
+            label: 'Weakest legend',
+            detail:
+                '${worst.legend} · ${_signed(worst.avgRpPerGame)} RP/game over ${worst.games} games',
+            tone: worst.avgRpPerGame >= 0
+                ? InsightTone.neutral
+                : InsightTone.negative,
+          ),
+        );
       }
     }
   }
 
   // Strongest map.
-  final qualifyingMaps =
-      maps.where((m) => m.games >= kMinGamesForInsight).toList();
+  final qualifyingMaps = maps
+      .where((m) => m.games >= kMinGamesForInsight)
+      .toList();
   if (qualifyingMaps.isNotEmpty) {
-    final best = qualifyingMaps
-        .reduce((a, b) => a.avgRpPerGame >= b.avgRpPerGame ? a : b);
-    insights.add(RankedInsight(
-      label: 'Strongest map',
-      detail:
-          '${best.displayName} · ${_signed(best.avgRpPerGame)} RP/game over ${best.games} games',
-      tone: best.avgRpPerGame >= 0 ? InsightTone.positive : InsightTone.neutral,
-    ));
+    final best = qualifyingMaps.reduce(
+      (a, b) => a.avgRpPerGame >= b.avgRpPerGame ? a : b,
+    );
+    insights.add(
+      RankedInsight(
+        label: 'Strongest map',
+        detail:
+            '${best.displayName} · ${_signed(best.avgRpPerGame)} RP/game over ${best.games} games',
+        tone: best.avgRpPerGame >= 0
+            ? InsightTone.positive
+            : InsightTone.neutral,
+      ),
+    );
   }
 
   return insights;
@@ -739,15 +765,16 @@ List<HourBucket> timeOfDayBuckets(List<RankedMatch> matches) =>
 /// outliers are neutralized here to match [RankedMatch.effectiveRpChange].
 List<HourBucket> timeOfDayBucketsFromRankedRows(
   Iterable<(int startMsUtc, int rpChange)> rows,
-) =>
-    _bucketByHour(rows.map((r) {
-      final (startMs, rp) = r;
-      final effectiveRp = rp.abs() >= kRankedOutlierThreshold ? 0 : rp;
-      return (
-        DateTime.fromMillisecondsSinceEpoch(startMs, isUtc: true),
-        effectiveRp,
-      );
-    }));
+) => _bucketByHour(
+  rows.map((r) {
+    final (startMs, rp) = r;
+    final effectiveRp = rp.abs() >= kRankedOutlierThreshold ? 0 : rp;
+    return (
+      DateTime.fromMillisecondsSinceEpoch(startMs, isUtc: true),
+      effectiveRp,
+    );
+  }),
+);
 
 /// Shared core: tallies (UTC start time, effective RP) pairs into per-local-hour
 /// buckets. Only hours with at least one game are returned, ordered 0→23.
@@ -795,15 +822,16 @@ List<WeekdayBucket> dayOfWeekBuckets(List<RankedMatch> matches) =>
 /// outliers are neutralized here to match [RankedMatch.effectiveRpChange].
 List<WeekdayBucket> dayOfWeekBucketsFromRankedRows(
   Iterable<(int startMsUtc, int rpChange)> rows,
-) =>
-    _bucketByWeekday(rows.map((r) {
-      final (startMs, rp) = r;
-      final effectiveRp = rp.abs() >= kRankedOutlierThreshold ? 0 : rp;
-      return (
-        DateTime.fromMillisecondsSinceEpoch(startMs, isUtc: true),
-        effectiveRp,
-      );
-    }));
+) => _bucketByWeekday(
+  rows.map((r) {
+    final (startMs, rp) = r;
+    final effectiveRp = rp.abs() >= kRankedOutlierThreshold ? 0 : rp;
+    return (
+      DateTime.fromMillisecondsSinceEpoch(startMs, isUtc: true),
+      effectiveRp,
+    );
+  }),
+);
 
 /// Shared core: tallies (UTC start time, effective RP) pairs into per-local
 /// weekday buckets. Only days with at least one game are returned, ordered
@@ -821,4 +849,129 @@ List<WeekdayBucket> _bucketByWeekday(Iterable<(DateTime, int)> entries) {
     for (final d in weekdays)
       WeekdayBucket(weekday: d, games: games[d]!, netRp: rp[d]!),
   ];
+}
+
+// ── Personal records & session trends ───────────────────────────────────────
+
+/// The Lifetime-scope equivalent of [PersonalRecords]'s three best-game
+/// fields — fed by [RankedHistoryStore.personalBestGamesFor]'s SQL
+/// `ORDER BY ... LIMIT 1` queries instead of full match hydration. No
+/// streak or trend fields: those need chronological match/session data that
+/// Lifetime deliberately never loads.
+typedef PersonalBestGames = ({
+  RankedMatch? bestRpGame,
+  RankedMatch? bestKillsGame,
+  RankedMatch? bestDamageGame,
+});
+
+/// Standout single-game and streak stats for the Personal Records screen.
+/// Built from ranked matches only; null best-kills/best-damage mean no match
+/// in range reported that tracker. [currentStreakStart]/[bestStreakStart] are
+/// each streak's first match, null when that streak is 0.
+class PersonalRecords {
+  final RankedMatch? bestRpGame;
+  final RankedMatch? bestKillsGame;
+  final RankedMatch? bestDamageGame;
+  final int currentWinStreak;
+  final DateTime? currentStreakStart;
+  final int bestWinStreak;
+  final DateTime? bestStreakStart;
+
+  const PersonalRecords({
+    this.bestRpGame,
+    this.bestKillsGame,
+    this.bestDamageGame,
+    required this.currentWinStreak,
+    this.currentStreakStart,
+    required this.bestWinStreak,
+    this.bestStreakStart,
+  });
+}
+
+/// Computes [PersonalRecords] from ranked matches (any order). A "win" is the
+/// same effective-RP-gain > 0 definition used everywhere else in this file
+/// (see [legendBreakdowns]'s wins/losses). Only a loss (effective RP < 0)
+/// breaks a streak — an RP-neutral game (0, e.g. a reset outlier) is neither
+/// a win nor a loss, so it leaves the streak exactly where it was.
+PersonalRecords personalRecords(List<RankedMatch> matches) {
+  if (matches.isEmpty) {
+    return const PersonalRecords(currentWinStreak: 0, bestWinStreak: 0);
+  }
+
+  RankedMatch? bestRp, bestKills, bestDamage;
+  for (final m in matches) {
+    if (bestRp == null || m.effectiveRpChange > bestRp.effectiveRpChange) {
+      bestRp = m;
+    }
+    if (m.kills != null && (bestKills == null || m.kills! > bestKills.kills!)) {
+      bestKills = m;
+    }
+    if (m.damage != null &&
+        (bestDamage == null || m.damage! > bestDamage.damage!)) {
+      bestDamage = m;
+    }
+  }
+
+  final chrono = matches.toList()
+    ..sort((a, b) => a.startTime.compareTo(b.startTime));
+  var current = 0, best = 0;
+  DateTime? runStart, bestStart;
+  for (final m in chrono) {
+    final rp = m.effectiveRpChange;
+    if (rp > 0) {
+      runStart ??= m.startTime;
+      current += 1;
+      if (current > best) {
+        best = current;
+        bestStart = runStart;
+      }
+    } else if (rp < 0) {
+      current = 0;
+      runStart = null;
+    }
+    // rp == 0: neutral game, streak (and its start) unchanged.
+  }
+
+  return PersonalRecords(
+    bestRpGame: bestRp,
+    bestKillsGame: bestKills,
+    bestDamageGame: bestDamage,
+    currentWinStreak: current,
+    currentStreakStart: current > 0 ? runStart : null,
+    bestWinStreak: best,
+    bestStreakStart: bestStart,
+  );
+}
+
+/// Avg-per-game comparison between the most recent [window] sessions and the
+/// [window] before that, for whichever total [totalOf] extracts (net RP,
+/// kills, damage, ...). Null below `window * 2` sessions — not enough data
+/// for two windows. [sessions] must be newest-first, matching [sessionize]'s
+/// output.
+class SessionTrend {
+  final double recent;
+  final double previous;
+  const SessionTrend({required this.recent, required this.previous});
+
+  double get delta => recent - previous;
+}
+
+SessionTrend? sessionTrend(
+  List<RankedSession> sessions, {
+  required int Function(RankedSession) totalOf,
+  required int Function(RankedSession) gamesOf,
+  int window = 3,
+}) {
+  if (sessions.length < window * 2) return null;
+
+  double avgPerGame(Iterable<RankedSession> range) {
+    final games = range.fold(0, (s, e) => s + gamesOf(e));
+    final total = range.fold(0, (s, e) => s + totalOf(e));
+    return games == 0 ? 0 : total / games;
+  }
+
+  return SessionTrend(
+    recent: avgPerGame(sessions.take(window)),
+    previous: avgPerGame(sessions.skip(window).take(window)),
+  );
 }

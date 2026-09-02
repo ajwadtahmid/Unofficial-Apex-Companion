@@ -299,4 +299,125 @@ void main() {
       expect(progress.next, isNull);
     });
   });
+
+  group('personalRecords', () {
+    test('picks the single best RP/kills/damage game', () {
+      final r = personalRecords(ranked);
+      expect(r.bestRpGame?.legend, 'Bangalore'); // +60, the highest
+      expect(r.bestKillsGame?.legend, 'Bangalore'); // 5 kills, the highest
+      expect(r.bestDamageGame?.legend, 'Bangalore'); // 2000 dmg, the highest
+    });
+
+    test('best win streak counts consecutive effective-RP wins', () {
+      // Chronological: A(+40, win) B(-20, loss) C(+60, win) E(+10, win) —
+      // streak resets at B, then runs 2 through C and E.
+      final r = personalRecords(ranked);
+      expect(r.bestWinStreak, 2);
+      expect(r.currentWinStreak, 2);
+      // The run that set the record started at C, and it's still ongoing.
+      expect(r.bestStreakStart, r.currentStreakStart);
+      expect(r.currentStreakStart, ranked[1].startTime); // C, 3rd oldest
+    });
+
+    test('an RP-neutral reset-outlier game does not break a win streak', () {
+      final withReset = rankedOnly([
+        match(legend: 'Axle', mapKey: 'olympus_rotation', rpChange: 40, cumulativeRp: 40, kills: 1, damage: 100, startOffset: 0),
+        // |rpChange| >= 1000 → effectiveRpChange 0: neither a win nor a loss.
+        match(legend: 'Axle', mapKey: 'olympus_rotation', rpChange: -1500, cumulativeRp: 0, kills: 0, damage: 0, startOffset: 60),
+        match(legend: 'Axle', mapKey: 'olympus_rotation', rpChange: 30, cumulativeRp: 30, kills: 1, damage: 100, startOffset: 120),
+      ]);
+      final r = personalRecords(withReset);
+      expect(r.currentWinStreak, 2);
+      expect(r.bestWinStreak, 2);
+    });
+
+    test('a loss (even -1) breaks a win streak', () {
+      final withSmallLoss = rankedOnly([
+        match(legend: 'Axle', mapKey: 'olympus_rotation', rpChange: 40, cumulativeRp: 40, kills: 1, damage: 100, startOffset: 0),
+        match(legend: 'Axle', mapKey: 'olympus_rotation', rpChange: -1, cumulativeRp: 39, kills: 1, damage: 100, startOffset: 60),
+      ]);
+      final r = personalRecords(withSmallLoss);
+      expect(r.currentWinStreak, 0);
+      expect(r.currentStreakStart, isNull);
+      expect(r.bestWinStreak, 1);
+    });
+
+    test('a match with no reported kills/damage never wins those records', () {
+      final noTrackers = RankedMatch.fromJson({
+        'uid': '1',
+        'name': 'Tester',
+        'legendPlayed': 'Wraith',
+        'gameMode': 'BATTLE_ROYALE',
+        'gameLengthSecs': 600,
+        'gameStartTimestamp': t0 + 21600,
+        'gameEndTimestamp': t0 + 22200,
+        'gameData': <Map<String, Object?>>[],
+        'BRScoreChange': 5,
+        'BRScore': 1095,
+        'BRRankImg': 'https://x/diamond4.png',
+        'isPartyFull': false,
+        'map': 'olympus_rotation',
+      });
+      expect(noTrackers.kills, isNull);
+      expect(noTrackers.damage, isNull);
+
+      final r = personalRecords([...ranked, noTrackers]);
+      expect(r.bestKillsGame?.legend, 'Bangalore');
+      expect(r.bestDamageGame?.legend, 'Bangalore');
+    });
+
+    test('empty input yields no records and zero streaks', () {
+      final r = personalRecords(const []);
+      expect(r.bestRpGame, isNull);
+      expect(r.bestKillsGame, isNull);
+      expect(r.bestDamageGame, isNull);
+      expect(r.currentWinStreak, 0);
+      expect(r.bestWinStreak, 0);
+    });
+  });
+
+  group('sessionTrend', () {
+    test('returns null below window * 2 sessions', () {
+      final sessions = sessionize(ranked); // only 2 sessions in the fixture
+      final t = sessionTrend(
+        sessions,
+        totalOf: (s) => s.netRp,
+        gamesOf: (s) => s.games,
+        window: 3,
+      );
+      expect(t, isNull);
+    });
+
+    test('averages recent vs previous windows by RP/game', () {
+      // Six single-game sessions, each > kSessionGap apart, oldest first:
+      // -10, +10, +20, +40, +50, +60 RP. Newest-first once sessionized.
+      final sixSessions = rankedOnly([
+        for (final (i, rp) in const [-10, 10, 20, 40, 50, 60].indexed)
+          match(
+            legend: 'Axle',
+            mapKey: 'olympus_rotation',
+            rpChange: rp,
+            cumulativeRp: 1000 + rp,
+            kills: 1,
+            damage: 100,
+            startOffset: i * 10800, // 3h apart — always a new session
+          ),
+      ]);
+      final sessions = sessionize(sixSessions);
+      expect(sessions.length, 6);
+
+      final t = sessionTrend(
+        sessions,
+        totalOf: (s) => s.netRp,
+        gamesOf: (s) => s.games,
+        window: 3,
+      );
+      // Recent 3 (newest first): +60, +50, +40 → avg 50.
+      // Previous 3: +20, +10, -10 → avg ~6.67.
+      expect(t, isNotNull);
+      expect(t!.recent, closeTo(50, 0.01));
+      expect(t.previous, closeTo(6.6667, 0.01));
+      expect(t.delta, closeTo(43.33, 0.01));
+    });
+  });
 }

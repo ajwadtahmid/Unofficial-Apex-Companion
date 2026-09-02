@@ -16,6 +16,7 @@ import '../../widgets/graph_card.dart' show showSnapshotBackupSheet;
 import 'ranked_all_trackers_screen.dart';
 import 'ranked_compare_tab.dart';
 import 'ranked_legend_map_matrix_screen.dart';
+import 'ranked_personal_records_screen.dart';
 import 'ranked_pick_rate_screen.dart';
 import 'ranked_squad_sessions_screen.dart';
 import 'ranked_time_breakdown_screen.dart';
@@ -368,19 +369,34 @@ class _RankedBreakdownBodyState extends ConsumerState<RankedBreakdownBody> {
                 onRefresh: _refresh,
               ),
               const SizedBox(height: AppTheme.md),
-              RankedPickRateEntry(summary: agg.summary, legends: agg.legends),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: RankedAllTrackersEntry(
+                        legendStats: widget.legendStats,
+                        compact: widget.compactLegendCards,
+                        legendStack: widget.legendStack,
+                      ),
+                    ),
+                    const SizedBox(width: AppTheme.sm),
+                    Expanded(
+                      child: RankedPickRateEntry(
+                        summary: agg.summary,
+                        legends: agg.legends,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: AppTheme.md),
               IntrinsicHeight(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
-                      child: RankedSquadSessionsEntry(
-                        fullSquad: agg.squadBreakdown.full,
-                        partialSquad: agg.squadBreakdown.partial,
-                        matches: const [],
-                        onRefresh: _refresh,
-                      ),
+                      child: RankedPersonalBestEntry(uid: widget.uid),
                     ),
                     const SizedBox(width: AppTheme.sm),
                     Expanded(
@@ -391,12 +407,6 @@ class _RankedBreakdownBodyState extends ConsumerState<RankedBreakdownBody> {
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: AppTheme.md),
-              RankedAllTrackersEntry(
-                legendStats: widget.legendStats,
-                compact: widget.compactLegendCards,
-                legendStack: widget.legendStack,
               ),
               const SizedBox(height: AppTheme.lg),
             ],
@@ -465,7 +475,11 @@ class _OverviewTab extends StatelessWidget {
         children: [
           PlayerInfoCard(stats: stats, rpDelta: rpDelta),
           const SizedBox(height: AppTheme.md),
-          RankedSummaryHeader(summary: summary, uid: uid),
+          RankedSummaryHeader(
+            summary: summary,
+            uid: uid,
+            livePlayerRp: stats.rankScore,
+          ),
           const SizedBox(height: AppTheme.md),
           RankedRpChart(
             matches: matches,
@@ -492,12 +506,35 @@ class _OverviewTab extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: RankedLegendMapMatrixEntry(matches: matches)),
+                Expanded(
+                  child: RankedAllTrackersEntry(
+                    legendStats: legendStats,
+                    compact: compactLegendCards,
+                    legendStack: legendStack,
+                  ),
+                ),
                 const SizedBox(width: AppTheme.sm),
+                Expanded(child: RankedLegendMapMatrixEntry(matches: matches)),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppTheme.md),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 Expanded(
                   child: RankedPickRateEntry(
                     summary: summary,
                     legends: legends,
+                  ),
+                ),
+                const SizedBox(width: AppTheme.sm),
+                Expanded(
+                  child: RankedTimeBreakdownEntry(
+                    hourBuckets: timeOfDayBuckets(matches),
+                    weekdayBuckets: dayOfWeekBuckets(matches),
+                    matches: matches,
                   ),
                 ),
               ],
@@ -508,6 +545,8 @@ class _OverviewTab extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Expanded(child: RankedPersonalRecordsEntry(matches: matches)),
+                const SizedBox(width: AppTheme.sm),
                 Expanded(
                   child: RankedSquadSessionsEntry(
                     fullSquad: summarize(
@@ -520,21 +559,8 @@ class _OverviewTab extends StatelessWidget {
                     onRefresh: onRefresh,
                   ),
                 ),
-                const SizedBox(width: AppTheme.sm),
-                Expanded(
-                  child: RankedTimeBreakdownEntry(
-                    hourBuckets: timeOfDayBuckets(matches),
-                    weekdayBuckets: dayOfWeekBuckets(matches),
-                  ),
-                ),
               ],
             ),
-          ),
-          const SizedBox(height: AppTheme.md),
-          RankedAllTrackersEntry(
-            legendStats: legendStats,
-            compact: compactLegendCards,
-            legendStack: legendStack,
           ),
           const SizedBox(height: AppTheme.lg),
         ],
