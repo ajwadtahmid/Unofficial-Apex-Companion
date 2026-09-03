@@ -115,6 +115,7 @@ class _Matrix extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.only(bottom: AppTheme.md),
             child: Text(
+              'Ranked games broken down by legend and map.\n'
               'Each cell: games played on top, avg RP gain/loss per game on '
               'bottom.',
               style: TextStyle(color: AppTheme.muted, fontSize: 12),

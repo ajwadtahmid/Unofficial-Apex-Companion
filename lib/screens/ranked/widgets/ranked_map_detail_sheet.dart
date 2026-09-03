@@ -135,7 +135,7 @@ class _MapDetailSheet extends StatelessWidget {
                 onPressed: () => _viewHistory(context),
                 style: FilledButton.styleFrom(backgroundColor: AppTheme.accent),
                 icon: const Icon(Icons.history, size: 18),
-                label: const Text('View all history'),
+                label: const Text('History'),
               ),
             ),
           ],
