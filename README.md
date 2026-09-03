@@ -192,6 +192,8 @@ The app proxies all API calls through a private server instead of calling APIs d
 ```env
 # .env
 PROXY_URL=https://your-proxy-server.example.com
+# Optional: tried automatically when PROXY_URL fails after retries. Leave unset to disable failover.
+PROXY_URL_BACKUP=
 CLIENT_TOKEN=your-secret-token
 SENTRY_DSN=https://examplePublicKey@o0.ingest.sentry.io/01234567
 ```

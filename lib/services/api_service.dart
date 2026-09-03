@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../env/env.dart';
 import '../utils/api_base_options.dart';
 import '../utils/api_cache.dart';
 import '../utils/app_logger.dart';
@@ -30,7 +31,9 @@ class ApiService {
         ),
       );
     }
-    _dio.interceptors.add(RetryInterceptor(dio: _dio));
+    _dio.interceptors.add(
+      RetryInterceptor(dio: _dio, backupBaseUrl: Env.proxyUrlBackup),
+    );
     _cache = ApiCache(prefs);
   }
 

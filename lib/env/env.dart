@@ -7,6 +7,11 @@ abstract class Env {
   @EnviedField(varName: 'PROXY_URL')
   static final String proxyUrl = _Env.proxyUrl;
 
+  /// Secondary proxy deployment, tried automatically when [proxyUrl] fails
+  /// after retries (see RetryInterceptor). Leave empty to disable failover.
+  @EnviedField(varName: 'PROXY_URL_BACKUP', defaultValue: '')
+  static final String proxyUrlBackup = _Env.proxyUrlBackup;
+
   @EnviedField(varName: 'CLIENT_TOKEN')
   static final String clientToken = _Env.clientToken;
 
