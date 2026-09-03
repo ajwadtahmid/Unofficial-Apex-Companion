@@ -111,14 +111,19 @@ class RankedPersonalRecordsScreen extends StatelessWidget {
             const SizedBox(height: AppTheme.lg),
             const Divider(color: AppTheme.surface2, height: 1),
             const SizedBox(height: AppTheme.lg),
-            const Text(
-              'SPLIT COMPARISON',
-              style: TextStyle(
-                color: AppTheme.muted,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-              ),
+            const Row(
+              children: [
+                Icon(Icons.compare_arrows, size: 18, color: AppTheme.accent),
+                SizedBox(width: AppTheme.sm),
+                Text(
+                  'Split Comparison',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: AppTheme.md),
             RankedCompareTab(uid: uid, splits: splits),

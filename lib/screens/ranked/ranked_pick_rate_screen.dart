@@ -545,6 +545,13 @@ class _LegendStatsTable extends StatelessWidget {
                   Expanded(flex: 2, child: SizedBox()),
                   Expanded(
                     child: Text(
+                      'GAMES',
+                      textAlign: TextAlign.end,
+                      style: TextStyle(color: AppTheme.muted, fontSize: 10, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
                       'PICK',
                       textAlign: TextAlign.end,
                       style: TextStyle(color: AppTheme.muted, fontSize: 10, fontWeight: FontWeight.w600),
@@ -596,6 +603,13 @@ class _LegendStatsRow extends StatelessWidget {
               legend.legend,
               style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
               overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              '${legend.games}',
+              textAlign: TextAlign.end,
+              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
             ),
           ),
           Expanded(
