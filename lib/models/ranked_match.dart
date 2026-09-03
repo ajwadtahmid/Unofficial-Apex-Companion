@@ -12,6 +12,19 @@ import 'dart:convert';
 /// counts as a played game; only its RP value is neutralized in RP aggregates.
 const int kRankedOutlierThreshold = 1000;
 
+/// Lower bound of a plausible single-game [RankedMatch.rpChange]. A drop
+/// beyond this — but short of [kRankedOutlierThreshold] — is still almost
+/// certainly a bad upstream value rather than a real per-game loss, and is
+/// excluded from RP aggregates the same way (see [RankedMatch.isRankedOutlier]).
+const int kMinPlausibleRpChange = -250;
+
+/// Plausible per-game ceilings for [RankedMatch.kills] and
+/// [RankedMatch.damage]. A negative value or one above these is treated as
+/// "not reported" (null) rather than clamped to 0, which would misrepresent
+/// a played game as scoreless — see [RankedMatch.withPlausibleStats].
+const int kMaxPlausibleKills = 200;
+const int kMaxPlausibleDamage = 20000;
+
 /// Stored columns a user may correct by hand, after which sync leaves them
 /// alone. Timestamps are excluded: they derive the row's primary key, its split
 /// classification and its session grouping. `length_secs` is excluded too —
@@ -131,10 +144,13 @@ class RankedMatch {
   /// have `rpChange == 0` and are excluded from ranked aggregates.
   bool get isRanked => isBattleRoyale && rpChange != 0;
 
-  /// True when this match's [rpChange] is a rank-reset artifact rather than a
-  /// real per-game swing. The game itself still counts (kills, damage, etc.).
+  /// True when this match's [rpChange] is a rank-reset artifact, or otherwise
+  /// outside the plausible per-game range, rather than a real per-game swing.
+  /// The game itself still counts (kills, damage, etc.).
   bool get isRankedOutlier =>
-      isRanked && rpChange.abs() >= kRankedOutlierThreshold;
+      isRanked &&
+      (rpChange.abs() >= kRankedOutlierThreshold ||
+          rpChange < kMinPlausibleRpChange);
 
   /// [rpChange] with reset artifacts zeroed out. Used in every RP aggregate
   /// (Overview, Legends, Maps, Sessions, Time of Day). The raw [rpChange] is
@@ -198,6 +214,38 @@ class RankedMatch {
       damage: damage,
       seasonId: seasonId,
       editedFields: flags,
+    );
+  }
+
+  /// Returns a copy with [kills]/[damage] nulled if negative or above
+  /// [kMaxPlausibleKills]/[kMaxPlausibleDamage] — treated as "not reported",
+  /// the same as when upstream never sent the tracker at all, rather than
+  /// clamped to 0 (which would misrepresent a played game as scoreless).
+  /// Applied to every freshly synced match before it's written to the store.
+  RankedMatch withPlausibleStats() {
+    final k = kills;
+    final d = damage;
+    final validKills = k == null || (k >= 0 && k <= kMaxPlausibleKills) ? k : null;
+    final validDamage = d == null || (d >= 0 && d <= kMaxPlausibleDamage) ? d : null;
+    if (validKills == k && validDamage == d) return this;
+    return RankedMatch(
+      uid: uid,
+      playerName: playerName,
+      legend: legend,
+      gameMode: gameMode,
+      mapKey: mapKey,
+      rpChange: rpChange,
+      cumulativeRp: cumulativeRp,
+      rankImg: rankImg,
+      lengthSecs: lengthSecs,
+      startTime: startTime,
+      endTime: endTime,
+      isPartyFull: isPartyFull,
+      trackers: trackers,
+      kills: validKills,
+      damage: validDamage,
+      seasonId: seasonId,
+      editedFields: editedFields,
     );
   }
 

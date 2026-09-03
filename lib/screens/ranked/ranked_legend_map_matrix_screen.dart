@@ -58,7 +58,9 @@ class RankedLegendMapMatrixScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Legend × Map')),
-      body: SafeArea(child: RankedLegendMapMatrixView(cells: legendMapBreakdowns(matches))),
+      body: SafeArea(
+        child: RankedLegendMapMatrixView(cells: legendMapBreakdowns(matches)),
+      ),
     );
   }
 }
@@ -113,7 +115,8 @@ class _Matrix extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.only(bottom: AppTheme.md),
             child: Text(
-              'Games played and avg RP change per game, by legend and map.',
+              'Each cell: games played on top, avg RP gain/loss per game on '
+              'bottom.',
               style: TextStyle(color: AppTheme.muted, fontSize: 12),
             ),
           ),
@@ -199,7 +202,10 @@ class _ValueCell extends StatelessWidget {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         child: Center(
-          child: Text('–', style: TextStyle(color: AppTheme.muted, fontSize: 12)),
+          child: Text(
+            '–',
+            style: TextStyle(color: AppTheme.muted, fontSize: 12),
+          ),
         ),
       );
     }

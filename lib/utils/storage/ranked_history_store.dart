@@ -22,7 +22,7 @@ import '../ranked/ranked_aggregates.dart';
 class RankedHistoryStore {
   static const _dbName = 'ranked_history.db';
   static const table = 'ranked_matches';
-  static const _version = 6;
+  static const _version = 7;
 
   // Scope of the lazy season backfill — the rows it still has work to do on.
   // Used verbatim by both a partial index and the backfill query, which must
@@ -126,6 +126,18 @@ class RankedHistoryStore {
           await db.execute('DROP INDEX IF EXISTS idx_needs_kills_damage');
           await _repairTrackerColumns(db);
         }
+        // v6 → v7: one-time repair for kills/damage values outside the
+        // plausible per-game range (kMaxPlausibleKills/kMaxPlausibleDamage in
+        // ranked_match.dart) — almost certainly a bad upstream value, not a
+        // real game. Nulled rather than zeroed (same "not reported" meaning
+        // as an absent tracker) and flagged in edited_fields so a future sync
+        // can't bring the bad value back. rp_change doesn't need row repair:
+        // RankedMatch.isRankedOutlier already excludes an implausible swing
+        // from every RP aggregate, computed fresh from the stored value with
+        // no migration needed.
+        if (oldVersion < 7) {
+          await _repairImplausibleStats(db);
+        }
       },
     );
     return _db!;
@@ -163,6 +175,41 @@ class RankedHistoryStore {
         {
           'kills': RankedMatch.killsFrom(trackers),
           'damage': RankedMatch.damageFrom(trackers),
+        },
+        where: 'id = ?',
+        whereArgs: [r['id']],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  /// One-time repair for existing rows whose kills/damage falls outside the
+  /// plausible per-game range. See the v6 → v7 migration comment above.
+  Future<void> _repairImplausibleStats(Database db) async {
+    final rows = await db.query(
+      table,
+      columns: ['id', 'kills', 'damage', 'edited_fields'],
+      where: 'kills < 0 OR kills > $kMaxPlausibleKills OR '
+          'damage < 0 OR damage > $kMaxPlausibleDamage',
+    );
+    if (rows.isEmpty) return;
+    final batch = db.batch();
+    for (final r in rows) {
+      final kills = (r['kills'] as num?)?.toInt();
+      final damage = (r['damage'] as num?)?.toInt();
+      final badKills = kills != null && (kills < 0 || kills > kMaxPlausibleKills);
+      final badDamage = damage != null && (damage < 0 || damage > kMaxPlausibleDamage);
+      final flags = {
+        ...decodeEditedFields(r['edited_fields']),
+        if (badKills) 'kills',
+        if (badDamage) 'damage',
+      };
+      batch.update(
+        table,
+        {
+          if (badKills) 'kills': null,
+          if (badDamage) 'damage': null,
+          'edited_fields': encodeEditedFields(flags),
         },
         where: 'id = ?',
         whereArgs: [r['id']],
@@ -218,7 +265,7 @@ class RankedHistoryStore {
     final db = await _open();
     final batch = db.batch();
     for (final m in matches) {
-      final row = m.toStoredMap();
+      final row = m.withPlausibleStats().toStoredMap();
       final derivedSeasonId = seasons.isNotEmpty
           ? seasonIdForEndTime(m.endTime, seasons.values)
           : null;

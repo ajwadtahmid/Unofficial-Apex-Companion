@@ -115,6 +115,7 @@ class RankedPickRateScreen extends StatefulWidget {
 class _RankedPickRateScreenState extends State<RankedPickRateScreen> {
   bool _showAll = false;
   bool _useOwnAverageBaseline = false;
+  bool _tableView = false;
   LegendBreakdown? _selected;
 
   @override
@@ -129,6 +130,11 @@ class _RankedPickRateScreenState extends State<RankedPickRateScreen> {
         title: const Text('Pick Rate'),
         actions: [
           IconButton(
+            icon: Icon(_tableView ? Icons.bubble_chart_outlined : Icons.table_rows_outlined),
+            tooltip: _tableView ? 'Show chart' : 'Show table',
+            onPressed: () => setState(() => _tableView = !_tableView),
+          ),
+          IconButton(
             icon: const Icon(Icons.tune),
             tooltip: 'Customize',
             onPressed: () => _showCustomizeSheet(context),
@@ -141,7 +147,9 @@ class _RankedPickRateScreenState extends State<RankedPickRateScreen> {
                 showingAll: _showAll,
                 onShowAll: () => setState(() => _showAll = true),
               )
-            : _buildBody(pool, total),
+            : _tableView
+                ? _LegendStatsTable(pool: pool, totalGames: total)
+                : _buildBody(pool, total),
       ),
     );
   }
@@ -489,7 +497,9 @@ class _SelectedDetail extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${(rate * 100).toStringAsFixed(1)}% pick rate · ${l.games} games',
+                  '${(rate * 100).toStringAsFixed(1)}% pick rate · '
+                  '${(l.winRate * 100).toStringAsFixed(0)}% win rate · '
+                  '${l.games} games',
                   style: const TextStyle(color: AppTheme.muted, fontSize: 12),
                 ),
               ],
@@ -501,6 +511,116 @@ class _SelectedDetail extends StatelessWidget {
               color: positive ? AppTheme.green : AppTheme.red,
               fontWeight: FontWeight.bold,
               fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Table alternative to the scatter chart: one row per legend, sorted by pick
+/// rate descending, showing pick rate, win rate, and avg RP gain/loss side by
+/// side — for a precise read of the same pool the chart plots.
+class _LegendStatsTable extends StatelessWidget {
+  final List<LegendBreakdown> pool;
+  final int totalGames;
+
+  const _LegendStatsTable({required this.pool, required this.totalGames});
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...pool]..sort((a, b) => b.games.compareTo(a.games));
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppTheme.md),
+      child: SurfaceCard(
+        padding: const EdgeInsets.symmetric(horizontal: AppTheme.md),
+        child: Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppTheme.sm),
+              child: Row(
+                children: [
+                  Expanded(flex: 2, child: SizedBox()),
+                  Expanded(
+                    child: Text(
+                      'PICK',
+                      textAlign: TextAlign.end,
+                      style: TextStyle(color: AppTheme.muted, fontSize: 10, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'WIN',
+                      textAlign: TextAlign.end,
+                      style: TextStyle(color: AppTheme.muted, fontSize: 10, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'RP/GAME',
+                      textAlign: TextAlign.end,
+                      style: TextStyle(color: AppTheme.muted, fontSize: 10, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: AppTheme.surface2, height: 1),
+            for (final l in sorted) _LegendStatsRow(legend: l, totalGames: totalGames),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LegendStatsRow extends StatelessWidget {
+  final LegendBreakdown legend;
+  final int totalGames;
+
+  const _LegendStatsRow({required this.legend, required this.totalGames});
+
+  @override
+  Widget build(BuildContext context) {
+    final pickRate = totalGames == 0 ? 0.0 : legend.games / totalGames;
+    final positive = legend.avgRpPerGame >= 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              legend.legend,
+              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              '${(pickRate * 100).toStringAsFixed(0)}%',
+              textAlign: TextAlign.end,
+              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              '${(legend.winRate * 100).toStringAsFixed(0)}%',
+              textAlign: TextAlign.end,
+              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              '${positive ? '+' : ''}${legend.avgRpPerGame.toStringAsFixed(1)}',
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                color: positive ? AppTheme.green : AppTheme.red,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

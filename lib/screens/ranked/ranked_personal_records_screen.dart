@@ -109,6 +109,8 @@ class RankedPersonalRecordsScreen extends StatelessWidget {
               bestStreakStart: records.bestStreakStart,
             ),
             const SizedBox(height: AppTheme.lg),
+            const Divider(color: AppTheme.surface2, height: 1),
+            const SizedBox(height: AppTheme.lg),
             const Text(
               'SPLIT COMPARISON',
               style: TextStyle(
