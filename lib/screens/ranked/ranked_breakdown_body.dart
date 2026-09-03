@@ -14,7 +14,6 @@ import '../../utils/ranked/ranked_period.dart';
 import '../../utils/theme.dart';
 import '../../widgets/graph_card.dart' show showSnapshotBackupSheet;
 import 'ranked_all_trackers_screen.dart';
-import 'ranked_compare_tab.dart';
 import 'ranked_legend_map_matrix_screen.dart';
 import 'ranked_personal_records_screen.dart';
 import 'ranked_pick_rate_screen.dart';
@@ -301,7 +300,7 @@ class _RankedBreakdownBodyState extends ConsumerState<RankedBreakdownBody> {
 
     return _tabShell(
       'split',
-      const ['Overview', 'Legends', 'Maps', 'History', 'Compare'],
+      const ['Overview', 'Legends', 'Maps', 'History'],
       [
         _OverviewTab(
           uid: widget.uid,
@@ -313,6 +312,7 @@ class _RankedBreakdownBodyState extends ConsumerState<RankedBreakdownBody> {
           matches: filtered,
           legends: legends,
           maps: maps,
+          splits: view.splits,
           legendStats: widget.legendStats,
           compactLegendCards: widget.compactLegendCards,
           legendStack: widget.legendStack,
@@ -330,7 +330,6 @@ class _RankedBreakdownBodyState extends ConsumerState<RankedBreakdownBody> {
         ),
         // History keeps everything (pubs included), not just the ranked matches.
         RankedMatchList(matches: view.history, onRefresh: _refresh),
-        RankedCompareTab(uid: widget.uid, splits: view.splits),
       ],
     );
   }
@@ -437,6 +436,7 @@ class _OverviewTab extends StatelessWidget {
   final List<RankedMatch> matches;
   final List<LegendBreakdown> legends;
   final List<MapBreakdown> maps;
+  final List<RankedSplitBucket> splits;
   final List<LegendStat> legendStats;
   final bool compactLegendCards;
   final List<String> legendStack;
@@ -452,6 +452,7 @@ class _OverviewTab extends StatelessWidget {
     required this.matches,
     required this.legends,
     required this.maps,
+    required this.splits,
     required this.legendStats,
     required this.compactLegendCards,
     required this.legendStack,
@@ -545,7 +546,13 @@ class _OverviewTab extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: RankedPersonalRecordsEntry(matches: matches)),
+                Expanded(
+                  child: RankedPersonalRecordsEntry(
+                    uid: uid,
+                    matches: matches,
+                    splits: splits,
+                  ),
+                ),
                 const SizedBox(width: AppTheme.sm),
                 Expanded(
                   child: RankedSquadSessionsEntry(

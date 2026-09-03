@@ -13,10 +13,9 @@ import 'widgets/ranked_day_of_week_chart.dart';
 import 'widgets/ranked_squad_breakdown_card.dart';
 import 'widgets/ranked_time_of_day_chart.dart';
 
-/// Split-vs-split comparison, as its own tab rather than a button+page: it
-/// reuses several other breakdown views (Legend × Map, squad, time/day) inline
-/// per split rather than sending the user to a separate screen for each, so a
-/// button-and-push pattern would just be an extra tap in front of an extra tap.
+/// Split-vs-split comparison. Embedded inline (not in its own scrollable) at
+/// the bottom of the Personal Records screen, below the standout-game cards
+/// and streak — the caller supplies the surrounding `ListView`.
 ///
 /// Only real, named splits are selectable — not Lifetime (comparing "every
 /// split combined" against one split isn't a split-vs-split comparison) and
@@ -60,9 +59,9 @@ class _RankedCompareTabState extends ConsumerState<RankedCompareTab> {
   Widget build(BuildContext context) {
     final real = _comparable;
     if (real.length < 2) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(AppTheme.xl),
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: AppTheme.lg),
+        child: Center(
           child: Text(
             'Need at least two splits with recorded history to compare.',
             textAlign: TextAlign.center,
@@ -78,20 +77,17 @@ class _RankedCompareTabState extends ConsumerState<RankedCompareTab> {
     final bucketB = real.firstWhere((b) => b.id == idB, orElse: () => real[1]);
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.all(AppTheme.md),
-          child: _SplitPicker(
-            splits: real,
-            selectedA: bucketA.id,
-            selectedB: bucketB.id,
-            onChangedA: (id) => setState(() => _splitAId = id),
-            onChangedB: (id) => setState(() => _splitBId = id),
-          ),
+        _SplitPicker(
+          splits: real,
+          selectedA: bucketA.id,
+          selectedB: bucketB.id,
+          onChangedA: (id) => setState(() => _splitAId = id),
+          onChangedB: (id) => setState(() => _splitBId = id),
         ),
-        Expanded(
-          child: _CompareBody(uid: widget.uid, bucketA: bucketA, bucketB: bucketB),
-        ),
+        const SizedBox(height: AppTheme.md),
+        _CompareBody(uid: widget.uid, bucketA: bucketA, bucketB: bucketB),
       ],
     );
   }
@@ -231,28 +227,22 @@ class _CompareBody extends ConsumerWidget {
     required this.bucketB,
   });
 
-  Future<void> _refresh(WidgetRef ref) async {
-    ref.invalidate(rankedSyncProvider(uid));
-    try {
-      await ref.read(rankedSyncProvider(uid).future);
-    } catch (_) {
-      // Errors surface through the split-detail providers' AsyncError state.
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final aAsync = ref.watch(rankedSplitDetailProvider((uid: uid, splitId: bucketA.id)));
     final bAsync = ref.watch(rankedSplitDetailProvider((uid: uid, splitId: bucketB.id)));
 
     if (aAsync.isLoading || bAsync.isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppTheme.accent));
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: AppTheme.lg),
+        child: Center(child: CircularProgressIndicator(color: AppTheme.accent)),
+      );
     }
     final error = aAsync.error ?? bAsync.error;
     if (error != null) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(AppTheme.xl),
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: AppTheme.lg),
+        child: Center(
           child: Text(
             'Could not load one of these splits.',
             style: TextStyle(color: AppTheme.muted, fontSize: 13),
@@ -263,58 +253,54 @@ class _CompareBody extends ConsumerWidget {
     final a = aAsync.requireValue;
     final b = bAsync.requireValue;
 
-    return RefreshIndicator(
-      color: AppTheme.accent,
-      onRefresh: () => _refresh(ref),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(AppTheme.md, 0, AppTheme.md, AppTheme.lg),
-        children: [
-          const _Disclaimer(),
-          const SizedBox(height: AppTheme.md),
-          _SummarySection(bucketA: bucketA, bucketB: bucketB, a: a, b: b),
-          const SizedBox(height: AppTheme.md),
-          const _SectionHeader('SQUAD'),
-          _SplitLabel(bucketA.displayName),
-          RankedSquadBreakdownCard(full: a.squadBreakdown.full, partial: a.squadBreakdown.partial),
-          const SizedBox(height: AppTheme.sm),
-          _SplitLabel(bucketB.displayName),
-          RankedSquadBreakdownCard(full: b.squadBreakdown.full, partial: b.squadBreakdown.partial),
-          const SizedBox(height: AppTheme.md),
-          const _SectionHeader('PICK RATE'),
-          _SplitLabel(bucketA.displayName),
-          _PickRateList(legends: a.legends, totalGames: a.summary.games),
-          const SizedBox(height: AppTheme.sm),
-          _SplitLabel(bucketB.displayName),
-          _PickRateList(legends: b.legends, totalGames: b.summary.games),
-          const SizedBox(height: AppTheme.md),
-          const _SectionHeader('LEGEND × MAP'),
-          _SplitLabel(bucketA.displayName),
-          SurfaceCard(
-            padding: const EdgeInsets.all(AppTheme.md),
-            child: RankedLegendMapMatrixView(cells: a.legendMap),
-          ),
-          const SizedBox(height: AppTheme.sm),
-          _SplitLabel(bucketB.displayName),
-          SurfaceCard(
-            padding: const EdgeInsets.all(AppTheme.md),
-            child: RankedLegendMapMatrixView(cells: b.legendMap),
-          ),
-          const SizedBox(height: AppTheme.md),
-          const _SectionHeader('PERFORMANCE BY HOUR'),
-          _SplitLabel(bucketA.displayName),
-          RankedTimeOfDayChart(buckets: a.timeOfDay),
-          const SizedBox(height: AppTheme.sm),
-          _SplitLabel(bucketB.displayName),
-          RankedTimeOfDayChart(buckets: b.timeOfDay),
-          const SizedBox(height: AppTheme.md),
-          const _SectionHeader('PERFORMANCE BY DAY'),
-          _SplitLabel(bucketA.displayName),
-          RankedDayOfWeekChart(buckets: a.dayOfWeek),
-          const SizedBox(height: AppTheme.sm),
-          _SplitLabel(bucketB.displayName),
-          RankedDayOfWeekChart(buckets: b.dayOfWeek),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _Disclaimer(),
+        const SizedBox(height: AppTheme.md),
+        _SummarySection(bucketA: bucketA, bucketB: bucketB, a: a, b: b),
+        const SizedBox(height: AppTheme.md),
+        const _SectionHeader('SQUAD'),
+        _SplitLabel(bucketA.displayName),
+        RankedSquadBreakdownCard(full: a.squadBreakdown.full, partial: a.squadBreakdown.partial),
+        const SizedBox(height: AppTheme.sm),
+        _SplitLabel(bucketB.displayName),
+        RankedSquadBreakdownCard(full: b.squadBreakdown.full, partial: b.squadBreakdown.partial),
+        const SizedBox(height: AppTheme.md),
+        const _SectionHeader('PICK RATE'),
+        _SplitLabel(bucketA.displayName),
+        _PickRateList(legends: a.legends, totalGames: a.summary.games),
+        const SizedBox(height: AppTheme.sm),
+        _SplitLabel(bucketB.displayName),
+        _PickRateList(legends: b.legends, totalGames: b.summary.games),
+        const SizedBox(height: AppTheme.md),
+        const _SectionHeader('LEGEND × MAP'),
+        _SplitLabel(bucketA.displayName),
+        SurfaceCard(
+          padding: const EdgeInsets.all(AppTheme.md),
+          child: RankedLegendMapMatrixView(cells: a.legendMap),
+        ),
+        const SizedBox(height: AppTheme.sm),
+        _SplitLabel(bucketB.displayName),
+        SurfaceCard(
+          padding: const EdgeInsets.all(AppTheme.md),
+          child: RankedLegendMapMatrixView(cells: b.legendMap),
+        ),
+        const SizedBox(height: AppTheme.md),
+        const _SectionHeader('PERFORMANCE BY HOUR'),
+        _SplitLabel(bucketA.displayName),
+        RankedTimeOfDayChart(buckets: a.timeOfDay),
+        const SizedBox(height: AppTheme.sm),
+        _SplitLabel(bucketB.displayName),
+        RankedTimeOfDayChart(buckets: b.timeOfDay),
+        const SizedBox(height: AppTheme.md),
+        const _SectionHeader('PERFORMANCE BY DAY'),
+        _SplitLabel(bucketA.displayName),
+        RankedDayOfWeekChart(buckets: a.dayOfWeek),
+        const SizedBox(height: AppTheme.sm),
+        _SplitLabel(bucketB.displayName),
+        RankedDayOfWeekChart(buckets: b.dayOfWeek),
+      ],
     );
   }
 }

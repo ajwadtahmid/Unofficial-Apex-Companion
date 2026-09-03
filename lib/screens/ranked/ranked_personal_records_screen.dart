@@ -6,8 +6,10 @@ import '../../models/ranked_match.dart';
 import '../../providers/ranked_provider.dart';
 import '../../utils/formatting/format.dart' show formatNumber, formatSigned;
 import '../../utils/ranked/ranked_aggregates.dart';
+import '../../utils/ranked/ranked_period.dart' show RankedSplitBucket;
 import '../../utils/theme.dart';
 import '../../widgets/surface_card.dart';
+import 'ranked_compare_tab.dart';
 
 final _dateFmt = DateFormat('MMM d, h:mm a');
 
@@ -17,8 +19,15 @@ final _dateFmt = DateFormat('MMM d, h:mm a');
 /// instead (see RankedTimeBreakdownScreen) — this page is about peaks, not
 /// ongoing patterns.
 class RankedPersonalRecordsEntry extends StatelessWidget {
+  final String uid;
   final List<RankedMatch> matches;
-  const RankedPersonalRecordsEntry({super.key, required this.matches});
+  final List<RankedSplitBucket> splits;
+  const RankedPersonalRecordsEntry({
+    super.key,
+    required this.uid,
+    required this.matches,
+    required this.splits,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +39,11 @@ class RankedPersonalRecordsEntry extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => RankedPersonalRecordsScreen(matches: matches),
+            builder: (_) => RankedPersonalRecordsScreen(
+              uid: uid,
+              matches: matches,
+              splits: splits,
+            ),
           ),
         ),
         child: const Padding(
@@ -63,8 +76,15 @@ class RankedPersonalRecordsEntry extends StatelessWidget {
 }
 
 class RankedPersonalRecordsScreen extends StatelessWidget {
+  final String uid;
   final List<RankedMatch> matches;
-  const RankedPersonalRecordsScreen({super.key, required this.matches});
+  final List<RankedSplitBucket> splits;
+  const RankedPersonalRecordsScreen({
+    super.key,
+    required this.uid,
+    required this.matches,
+    required this.splits,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -88,6 +108,18 @@ class RankedPersonalRecordsScreen extends StatelessWidget {
               bestStreak: records.bestWinStreak,
               bestStreakStart: records.bestStreakStart,
             ),
+            const SizedBox(height: AppTheme.lg),
+            const Text(
+              'SPLIT COMPARISON',
+              style: TextStyle(
+                color: AppTheme.muted,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: AppTheme.md),
+            RankedCompareTab(uid: uid, splits: splits),
           ],
         ),
       ),
