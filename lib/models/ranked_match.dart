@@ -144,6 +144,63 @@ class RankedMatch {
   /// Whether any column on this match has been hand-corrected.
   bool get isEdited => editedFields.isNotEmpty;
 
+  /// Returns a copy with [changes] (as produced by the match edit form, keyed
+  /// by [kEditableMatchFields]) applied and merged into [editedFields] — the
+  /// same shape the history store's `editMatch` writes to the database, so a
+  /// saved correction can be reflected in an in-memory list immediately
+  /// instead of waiting on the next fetch.
+  RankedMatch withEdits(Map<String, Object?> changes) => RankedMatch(
+    uid: uid,
+    playerName: playerName,
+    legend: changes.containsKey('legend') ? changes['legend'] as String : legend,
+    gameMode: gameMode,
+    mapKey: changes.containsKey('map_key') ? changes['map_key'] as String : mapKey,
+    rpChange: changes.containsKey('rp_change') ? changes['rp_change'] as int : rpChange,
+    cumulativeRp: cumulativeRp,
+    rankImg: rankImg,
+    lengthSecs: lengthSecs,
+    startTime: startTime,
+    endTime: endTime,
+    isPartyFull: isPartyFull,
+    trackers: trackers,
+    kills: changes.containsKey('kills') ? changes['kills'] as int? : kills,
+    damage: changes.containsKey('damage') ? changes['damage'] as int? : damage,
+    seasonId: seasonId,
+    editedFields: {...editedFields, ...changes.keys},
+  );
+
+  /// Returns a copy with [field] (or every field, if null) cleared from
+  /// [editedFields] — mirrors what the history store's `clearEdits` does:
+  /// only the "edited" flag is reset, values are left as-is until the next
+  /// sync.
+  RankedMatch withEditsCleared([String? field]) {
+    final flags = {...editedFields};
+    if (field == null) {
+      flags.clear();
+    } else {
+      flags.remove(field);
+    }
+    return RankedMatch(
+      uid: uid,
+      playerName: playerName,
+      legend: legend,
+      gameMode: gameMode,
+      mapKey: mapKey,
+      rpChange: rpChange,
+      cumulativeRp: cumulativeRp,
+      rankImg: rankImg,
+      lengthSecs: lengthSecs,
+      startTime: startTime,
+      endTime: endTime,
+      isPartyFull: isPartyFull,
+      trackers: trackers,
+      kills: kills,
+      damage: damage,
+      seasonId: seasonId,
+      editedFields: flags,
+    );
+  }
+
   /// Looks up a tracker value by its stable human [name] (case-insensitive).
   /// Returns null when the match didn't carry that tracker.
   num? trackerValue(String name) {

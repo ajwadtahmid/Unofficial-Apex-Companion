@@ -3,6 +3,7 @@ import '../../models/ranked_match.dart';
 import '../../utils/ranked/ranked_aggregates.dart';
 import '../../utils/theme.dart';
 import '../../widgets/surface_card.dart';
+import 'widgets/legend_map_info_sheet.dart';
 
 /// Self-contained entry point for the Legend × Map matrix: a single tappable
 /// row that pushes the full-screen breakdown. The only thing a caller needs to
@@ -57,7 +58,16 @@ class RankedLegendMapMatrixScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Legend × Map')),
+      appBar: AppBar(
+        title: const Text('Legend × Map'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'What does this chart mean?',
+            onPressed: () => showLegendMapInfoSheet(context),
+          ),
+        ],
+      ),
       body: SafeArea(child: RankedLegendMapMatrixView(cells: legendMapBreakdowns(matches))),
     );
   }

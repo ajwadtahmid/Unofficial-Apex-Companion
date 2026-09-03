@@ -42,6 +42,28 @@ class RankedEntityHistoryScreen extends StatefulWidget {
 class _RankedEntityHistoryScreenState extends State<RankedEntityHistoryScreen> {
   bool _grouped = false;
 
+  // This screen is pushed with a one-time snapshot of matches (the caller has
+  // already filtered it to one legend/map/session), not a live provider
+  // watch. Held locally so a correction made on this page can be reflected
+  // immediately via [_onMatchUpdated] instead of only after leaving and
+  // reopening the page.
+  late List<RankedMatch> _matches;
+
+  @override
+  void initState() {
+    super.initState();
+    _matches = widget.matches;
+  }
+
+  void _onMatchUpdated(RankedMatch updated) {
+    setState(() {
+      _matches = [
+        for (final m in _matches)
+          if (m.dedupKey == updated.dedupKey) updated else m,
+      ];
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -60,10 +82,11 @@ class _RankedEntityHistoryScreenState extends State<RankedEntityHistoryScreen> {
       ),
       body: SafeArea(
         child: MatchHistoryList(
-          matches: widget.matches,
+          matches: _matches,
           onRefresh: widget.onRefresh,
           emptyLabel: 'No ranked games here',
           grouping: _grouped ? widget.grouping : null,
+          onMatchUpdated: _onMatchUpdated,
           header: _SortToggle(
             grouped: _grouped,
             groupLabel: widget.groupLabel,

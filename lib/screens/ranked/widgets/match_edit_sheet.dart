@@ -8,9 +8,16 @@ import '../../../providers/ranked_provider.dart';
 import '../../../utils/app_logger.dart';
 import '../../../utils/theme.dart';
 
-/// Opens the correction form for [match].
-Future<void> showMatchEditSheet(BuildContext context, RankedMatch match) {
-  return showModalBottomSheet<void>(
+/// Opens the correction form for [match]. Resolves to the updated match if a
+/// correction was actually saved or cleared, or null if nothing changed, so
+/// callers holding a stale copy of [match] (e.g. a detail sheet opened before
+/// this one) can patch their own copy immediately rather than waiting on the
+/// next fetch.
+Future<RankedMatch?> showMatchEditSheet(
+  BuildContext context,
+  RankedMatch match,
+) {
+  return showModalBottomSheet<RankedMatch>(
     context: context,
     backgroundColor: AppTheme.surface,
     isScrollControlled: true,
@@ -179,7 +186,7 @@ class _MatchEditSheetState extends ConsumerState<MatchEditSheet> {
           .read(rankedHistoryStoreProvider)
           .editMatch(widget.match.dedupKey, changes);
       _refreshBreakdown();
-      if (mounted) Navigator.pop(context);
+      if (mounted) Navigator.pop(context, widget.match.withEdits(changes));
     } catch (e, st) {
       log.w('Match edit failed', error: e, stackTrace: st);
       if (mounted) {
@@ -199,7 +206,7 @@ class _MatchEditSheetState extends ConsumerState<MatchEditSheet> {
           .read(rankedHistoryStoreProvider)
           .clearEdits(widget.match.dedupKey);
       _refreshBreakdown();
-      if (mounted) Navigator.pop(context);
+      if (mounted) Navigator.pop(context, widget.match.withEditsCleared());
     } catch (e, st) {
       log.w('Match edit reset failed', error: e, stackTrace: st);
       if (mounted) {

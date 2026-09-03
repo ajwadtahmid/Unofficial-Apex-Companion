@@ -34,6 +34,13 @@ class MatchHistoryList extends StatefulWidget {
   /// Null → group by day (default). Set → group into entity sections.
   final MatchGrouping? grouping;
 
+  /// Called when a row's detail sheet saves or clears a correction. Callers
+  /// backed by a reactive provider (the History tab) can leave this unset —
+  /// invalidation already refreshes [matches]. Callers holding a static list
+  /// (e.g. a legend/map drill-down screen) should use it to patch their own
+  /// copy so the edit is visible without leaving the page.
+  final ValueChanged<RankedMatch>? onMatchUpdated;
+
   const MatchHistoryList({
     super.key,
     required this.matches,
@@ -41,6 +48,7 @@ class MatchHistoryList extends StatefulWidget {
     this.header,
     this.emptyLabel = 'No games yet',
     this.grouping,
+    this.onMatchUpdated,
   });
 
   @override
@@ -134,7 +142,10 @@ class _MatchHistoryListState extends State<MatchHistoryList> {
                       final DayHeaderItem h => _DayHeader(item: h),
                       final GroupHeaderItem h => _GroupHeader(item: h),
                       final SessionBreakItem s => _SessionBreak(gapSecs: s.gapSecs),
-                      final MatchItem m => _MatchRow(match: m.match),
+                      final MatchItem m => _MatchRow(
+                          match: m.match,
+                          onMatchUpdated: widget.onMatchUpdated,
+                        ),
                     },
                   ),
           ),
@@ -324,7 +335,8 @@ String _legendImageKey(String legend) =>
 
 class _MatchRow extends StatelessWidget {
   final RankedMatch match;
-  const _MatchRow({required this.match});
+  final ValueChanged<RankedMatch>? onMatchUpdated;
+  const _MatchRow({required this.match, this.onMatchUpdated});
 
   @override
   Widget build(BuildContext context) {
@@ -418,8 +430,8 @@ class _MatchRow extends StatelessWidget {
     );
   }
 
-  void _showDetail(BuildContext context, RankedMatch m) {
-    showModalBottomSheet<void>(
+  Future<void> _showDetail(BuildContext context, RankedMatch m) async {
+    final updated = await showModalBottomSheet<RankedMatch>(
       context: context,
       backgroundColor: AppTheme.surface,
       isScrollControlled: true,
@@ -429,6 +441,7 @@ class _MatchRow extends StatelessWidget {
       ),
       builder: (_) => _MatchDetailSheet(match: m),
     );
+    if (updated != null) onMatchUpdated?.call(updated);
   }
 }
 
@@ -547,7 +560,16 @@ class _MatchDetailSheet extends StatelessWidget {
                   color: AppTheme.muted,
                   tooltip: 'Correct this match',
                   visualDensity: VisualDensity.compact,
-                  onPressed: () => showMatchEditSheet(context, match),
+                  onPressed: () async {
+                    // Close this sheet too on a real save, passing the
+                    // updated match back up so the caller (row/list) can show
+                    // it immediately instead of the stale copy this sheet was
+                    // opened with.
+                    final updated = await showMatchEditSheet(context, match);
+                    if (updated != null && context.mounted) {
+                      Navigator.pop(context, updated);
+                    }
+                  },
                 ),
               ],
             ),
