@@ -14,6 +14,7 @@ import '../../utils/ranked/ranked_period.dart';
 import '../../utils/theme.dart';
 import '../../widgets/graph_card.dart' show showSnapshotBackupSheet;
 import 'ranked_all_trackers_screen.dart';
+import 'ranked_available_now_screen.dart';
 import 'ranked_legend_map_matrix_screen.dart';
 import 'ranked_personal_records_screen.dart';
 import 'ranked_pick_rate_screen.dart';
@@ -184,6 +185,13 @@ class _RankedBreakdownBodyState extends ConsumerState<RankedBreakdownBody> {
 
     final steps = _TrackingSteps(recording: recording);
     void onLearnMore() => showRankedInfoSheet(context);
+    // The RP graph and All Trackers read from the snapshot store and the live
+    // player-stats API respectively, neither gated on the match history this
+    // empty state is waiting on — so route to them whenever either has data.
+    final onViewAvailable =
+        (widget.snapshots.isNotEmpty || widget.legendStats.isNotEmpty)
+        ? _openAvailableNow
+        : null;
 
     // Nothing is being recorded for this UID at all — the only state that
     // needs an action rather than just patience.
@@ -199,6 +207,7 @@ class _RankedBreakdownBodyState extends ConsumerState<RankedBreakdownBody> {
         onAction: _startRecording,
         onRetry: _refresh,
         onLearnMore: onLearnMore,
+        onViewAvailable: onViewAvailable,
       );
     }
 
@@ -229,6 +238,25 @@ class _RankedBreakdownBodyState extends ConsumerState<RankedBreakdownBody> {
       steps: steps,
       onRetry: _refresh,
       onLearnMore: onLearnMore,
+      onViewAvailable: onViewAvailable,
+    );
+  }
+
+  /// Opens the RP graph and All Trackers, built from the snapshot store and
+  /// player-stats API this widget already holds, independent of match history.
+  void _openAvailableNow() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RankedAvailableNowScreen(
+          snapshots: widget.snapshots,
+          currentSeason: widget.stats.rankedSeason,
+          allSeasons: widget.allSeasons,
+          currentRp: widget.stats.rankScore,
+          legendStats: widget.legendStats,
+          compact: widget.compactLegendCards,
+          legendStack: widget.legendStack,
+        ),
+      ),
     );
   }
 
@@ -594,6 +622,10 @@ class _MessageState extends StatelessWidget {
   /// Optional link to the full explainer sheet.
   final VoidCallback? onLearnMore;
 
+  /// Optional link to [RankedAvailableNowScreen], shown only when the graph
+  /// or trackers it displays actually have data to show.
+  final VoidCallback? onViewAvailable;
+
   const _MessageState({
     required this.icon,
     required this.title,
@@ -603,6 +635,7 @@ class _MessageState extends StatelessWidget {
     this.onAction,
     this.steps,
     this.onLearnMore,
+    this.onViewAvailable,
   });
 
   @override
@@ -635,6 +668,18 @@ class _MessageState extends StatelessWidget {
             ),
             ?steps,
             const SizedBox(height: AppTheme.md),
+            if (onViewAvailable != null) ...[
+              OutlinedButton.icon(
+                onPressed: onViewAvailable,
+                icon: const Icon(Icons.bar_chart, size: 16),
+                label: const Text('View available stats'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.accent,
+                  side: const BorderSide(color: AppTheme.accent),
+                ),
+              ),
+              const SizedBox(height: AppTheme.xs),
+            ],
             if (actionLabel != null && onAction != null) ...[
               FilledButton(
                 onPressed: onAction,
